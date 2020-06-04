@@ -4,13 +4,5 @@ rust:
   - beta
   - nightly
 script:
-  - cargo build --manifest-path bounded-integer/Cargo.toml --verbose
-  - cargo test --manifest-path bounded-integer/Cargo.toml --verbose
-  - >
-    if [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then
-      cargo build --manifest-path bounded-integer-plugin/Cargo.toml --verbose
-    fi
-  - >
-    if [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then
-      cargo test --manifest-path bounded-integer-plugin/Cargo.toml --verbose
-    fi
+  - cargo build
+  - cargo test --all-features
