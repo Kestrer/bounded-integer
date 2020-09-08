@@ -1,6 +1,6 @@
 [package]
 name = "bounded-integer-macro"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Koxiaet <38139193+Koxiaet@users.noreply.github.com>"]
 description = "Bounded integers proc macro"
 keywords = ["bounded", "integer", "macro", "refinement"]
@@ -13,6 +13,6 @@ edition = "2018"
 proc-macro = true
 
 [dependencies]
-proc-macro2 = "1.0.18"
-syn = { version = "1.0.30", features = ["full"] }
-quote = "1.0.6"
+proc-macro2 = "1.0.20"
+syn = { version = "1.0.40", features = ["full"] }
+quote = "1.0.7"

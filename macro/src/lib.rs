@@ -59,7 +59,6 @@ use syn::{ExprLit, Lit};
 /// }
 /// ```
 ///
-///
 /// # Limitations
 ///
 /// - Both bounds of enum ranges must be closed and be a simple const expression involving only
@@ -68,10 +67,13 @@ use syn::{ExprLit, Lit};
 ///     - Addition (`x+y`), subtraction (`x-y`), multiplication (`x*y`), division (`x/y`) and
 ///     remainder (`x%y`).
 ///     - Bitwise not (`!x`), XOR (`x^y`), AND (`x&y`) and OR (`x|y`).
+/// - The above limitations do not apply to struct ranges.
+
 #[proc_macro]
 pub fn bounded_integer(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let mut result = TokenStream::new();
     let bounded_integer = parse_macro_input!(input as BoundedInteger);
+
+    let mut result = TokenStream::new();
     bounded_integer.generate_item(&mut result);
     bounded_integer.generate_impl(&mut result);
     result.into()
@@ -532,13 +534,10 @@ impl Parse for BoundedInteger {
                 brace_token: braced!(range_tokens in input),
                 range: {
                     let range: ExprRange = range_tokens.parse()?;
-                    let range_spans = range_spans(&range.limits);
-                    let from = eval_expr(&*range.from.ok_or_else(|| {
-                        Error::new(range_spans.0, "the bounds of an enum range must be closed")
-                    })?)?;
-                    let to = eval_expr(&*range.to.ok_or_else(|| {
-                        Error::new(range_spans.1, "the bounds of an enum range must be closed")
-                    })?)?;
+                    let (from, to) = range.from.as_deref()
+                        .zip(range.to.as_deref())
+                        .ok_or_else(|| Error::new_spanned(&range, "the bounds of an enum range must be closed"))?;
+                    let (from, to) = (eval_expr(from)?, eval_expr(to)?);
                     from..=if let RangeLimits::HalfOpen(_) = range.limits {
                         to - 1
                     } else {
@@ -551,22 +550,12 @@ impl Parse for BoundedInteger {
     }
 }
 
-fn range_spans(range: &RangeLimits) -> (Span, Span) {
-    match range {
-        RangeLimits::HalfOpen(dots) => (dots.spans[0], dots.spans[1]),
-        RangeLimits::Closed(dots_eq) => (dots_eq.spans[0], dots_eq.spans[2]),
-    }
-}
-
 fn eval_expr(expr: &Expr) -> syn::Result<isize> {
     Ok(match expr {
         Expr::Lit(ExprLit { lit, .. }) => match lit {
             Lit::Int(int) => int.base10_parse()?,
             _ => {
-                return Err(Error::new(
-                    span_of(lit),
-                    "literal not supported in this context",
-                ))
+                return Err(Error::new_spanned(lit, "literal must be integer"));
             }
         },
         Expr::Unary(ExprUnary { op, expr, .. }) => {
@@ -575,10 +564,7 @@ fn eval_expr(expr: &Expr) -> syn::Result<isize> {
                 UnOp::Not(_) => !expr,
                 UnOp::Neg(_) => -expr,
                 _ => {
-                    return Err(Error::new(
-                        span_of(op),
-                        "operator not supported in this context",
-                    ))
+                    return Err(Error::new_spanned(op, "unary operator must be ! or -"));
                 }
             }
         }
@@ -597,33 +583,22 @@ fn eval_expr(expr: &Expr) -> syn::Result<isize> {
                 BinOp::BitAnd(_) => left & right,
                 BinOp::BitOr(_) => left | right,
                 _ => {
-                    return Err(Error::new(
-                        span_of(op),
-                        "operator not supported in this context",
-                    ))
+                    return Err(Error::new_spanned(op, "operator not supported in this context"));
                 }
             }
         }
         Expr::Group(ExprGroup { expr, .. }) | Expr::Paren(ExprParen { expr, .. }) => {
             eval_expr(expr)?
         }
-        _ => return Err(Error::new(span_of(&expr), "expected integer literal")),
+        _ => return Err(Error::new_spanned(expr, "expected simple expression")),
     })
-}
-
-fn span_of<T: ToTokens>(item: &T) -> Span {
-    item.into_token_stream()
-        .into_iter()
-        .next()
-        .map(|tree| tree.span())
-        .unwrap_or_else(Span::call_site)
 }
 
 fn enum_variant(i: isize) -> Ident {
     Ident::new(
         &*match i.cmp(&0) {
             Ordering::Less => format!("N{}", i.abs()),
-            Ordering::Equal => "Z0".to_string(),
+            Ordering::Equal => "Z0".to_owned(),
             Ordering::Greater => format!("P{}", i),
         },
         Span::call_site(),
@@ -639,9 +614,8 @@ const CHECKED_OPERATORS: &[CheckedOperator] = &[
     CheckedOperator::new("div_euclid", "Euclidean division"    , Some("Self"), false),
     CheckedOperator::new("rem"       , "integer remainder"     , Some("Self"), false),
     CheckedOperator::new("rem_euclid", "Euclidean remainder"   , Some("Self"), false),
-    // Waiting on Rust 1.45 (2020-07-16) when `saturating_{neg, abs}` stabilizes on stable
-    CheckedOperator::new("neg"       , "negation"              , None        , false),
-    CheckedOperator::new("abs"       , "absolute value"        , None        , false),
+    CheckedOperator::new("neg"       , "negation"              , None        , true ),
+    CheckedOperator::new("abs"       , "absolute value"        , None        , true ),
     CheckedOperator::new("pow"       , "exponentiation"        , Some("u32") , true ),
 ];
 
@@ -670,12 +644,12 @@ impl CheckedOperator {
 
 #[rustfmt::skip]
 const OPERATORS: &[Operator] = &[
-    Operator { trait_name: "Add", method: "add", description: "add", bin: true },
-    Operator { trait_name: "Sub", method: "sub", description: "subtract", bin: true },
-    Operator { trait_name: "Mul", method: "mul", description: "multiply", bin: true },
-    Operator { trait_name: "Div", method: "div", description: "divide", bin: true },
+    Operator { trait_name: "Add", method: "add", description: "add"           , bin: true },
+    Operator { trait_name: "Sub", method: "sub", description: "subtract"      , bin: true },
+    Operator { trait_name: "Mul", method: "mul", description: "multiply"      , bin: true },
+    Operator { trait_name: "Div", method: "div", description: "divide"        , bin: true },
     Operator { trait_name: "Rem", method: "rem", description: "take remainder", bin: true },
-    Operator { trait_name: "Neg", method: "neg", description: "negate", bin: false },
+    Operator { trait_name: "Neg", method: "neg", description: "negate"        , bin: false },
 ];
 
 struct Operator {
