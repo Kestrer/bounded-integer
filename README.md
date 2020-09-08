@@ -1,5 +1,7 @@
 # Bounded Integer
 
+Note: This is now the primary repo for bounded-integer.
+
 [![Crate version][crate-badge]][crate]
 [![Build status][travis-badge]][travis]
 
