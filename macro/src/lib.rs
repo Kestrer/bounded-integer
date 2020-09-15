@@ -110,7 +110,7 @@ enum BoundedInteger {
     Struct {
         attrs: Vec<Attribute>,
         crate_location: Path,
-        repr: Ident,
+        repr: Path,
         vis: Visibility,
         struct_token: Token![struct],
         ident: Ident,
@@ -120,7 +120,7 @@ enum BoundedInteger {
     Enum {
         attrs: Vec<Attribute>,
         crate_location: Path,
-        repr: Ident,
+        repr: Path,
         vis: Visibility,
         enum_token: Token![enum],
         ident: Ident,
@@ -420,7 +420,7 @@ impl BoundedInteger {
                 if name == "Self" {
                     self.repr()
                 } else {
-                    rhs_ident_storage.get_or_insert_with(|| Ident::new(name, Span::call_site()))
+                    rhs_ident_storage.get_or_insert_with(|| Path::from(Ident::new(name, Span::call_site())))
                 }
             });
             let rhs_type = rhs.map(|ty| quote!(rhs: #ty,));
@@ -548,7 +548,7 @@ impl BoundedInteger {
             Self::Enum { crate_location, .. } => crate_location,
         }
     }
-    fn repr(&self) -> &Ident {
+    fn repr(&self) -> &Path {
         match self {
             Self::Struct { repr, .. } => repr,
             Self::Enum { repr, .. } => repr,
@@ -600,7 +600,6 @@ impl Parse for BoundedInteger {
 
         Ok(if input.peek(Token![struct]) {
             let struct_token: Token![struct] = input.parse()?;
-            let repr: Ident = repr;
 
             let range;
             #[allow(clippy::eval_order_dependence)]

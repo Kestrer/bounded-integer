@@ -10,7 +10,7 @@ readme = "README.md"
 edition = "2018"
 
 [dependencies]
-bounded-integer-macro = { path = "./macro", version = "0.2.1" }
+bounded-integer-macro = { path = "./macro", version = "0.2.2" }
 
 serde_crate = { package = "serde", version = "1.0.116", default-features = false, optional = true }
 
