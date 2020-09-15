@@ -6,6 +6,15 @@
 //!
 //! The integers generated from bounded-integer depend only on libcore and so work in `#![no_std]`
 //! environments.
+//!
+//! # Serde
+//!
+//! If you enable the `serde` feature of this crate then all bounded integers will implement
+//! `Serialize` and `Deserialize`, making sure that the internal invariants are never violated.
+
+#[cfg(feature = "serde")]
+#[doc(hidden)]
+pub use serde_crate as serde;
 
 #[cfg(feature = "examples")]
 pub mod examples;

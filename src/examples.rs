@@ -11,6 +11,7 @@ bounded_integer! {
     /// pub struct BoundedStruct { -8..8 }
     /// ```
     #[repr(i8)]
+    #[bounded_integer = crate]
     pub struct BoundedStruct { -8..8 }
 }
 
@@ -23,6 +24,7 @@ bounded_integer! {
     /// pub enum BoundedEnum { -8..8 }
     /// ```
     #[repr(i8)]
+    #[bounded_integer = crate]
     pub enum BoundedEnum { -8..8 }
 }
 

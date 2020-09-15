@@ -1,13 +1,14 @@
 //! A macro for generating bounded integer structs and enums.
 
 use std::cmp::Ordering;
+use std::iter;
 use std::ops::RangeInclusive;
 
 use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::{quote, quote_spanned, ToTokens, TokenStreamExt};
 use syn::parse::{self, Parse, ParseStream};
 use syn::{braced, parse_macro_input, token::Brace, Token};
-use syn::{Attribute, Error, Expr, Visibility};
+use syn::{Attribute, Error, Expr, Path, PathSegment, Visibility};
 use syn::{BinOp, ExprBinary, ExprRange, ExprUnary, RangeLimits, UnOp};
 use syn::{ExprGroup, ExprParen};
 use syn::{ExprLit, Lit};
@@ -16,8 +17,13 @@ use syn::{ExprLit, Lit};
 ///
 /// It takes in single struct or enum, with the content being any range expression, which can be
 /// inclusive or not. The attributes and visibility (e.g. `pub`) of the type are forwarded directly
-/// to the output type. It also derives `Debug`, `Hash`, `Clone`, `Copy`, `PartialEq`, `Eq`,
-/// `PartialOrd` and `Ord`.
+/// to the output type. It also implements:
+/// * `Debug`, `Display`, `Binary`, `LowerExp`, `LowerHex`, `Octal`, `UpperExp` and `UpperHex`
+/// * `Hash`
+/// * `Clone` and `Copy`
+/// * `PartialEq` and `Eq`
+/// * `PartialOrd` and `Ord`
+/// * If the `serde` feature is enabled, `Serialize` and `Deserialize`
 ///
 /// The item must have a `repr` attribute to specify how it will be represented in memory, and it
 /// must be a `u*` or `i*` type.
@@ -27,6 +33,7 @@ use syn::{ExprLit, Lit};
 /// ```rust
 /// # mod force_item_scope {
 /// # use bounded_integer_macro::bounded_integer;
+/// # #[cfg(not(feature = "serde"))]
 /// bounded_integer! {
 ///     #[repr(i8)]
 ///     pub struct S { -3..2 }
@@ -44,6 +51,7 @@ use syn::{ExprLit, Lit};
 /// ```rust
 /// # mod force_item_scope {
 /// # use bounded_integer_macro::bounded_integer;
+/// # #[cfg(not(feature = "serde"))]
 /// bounded_integer! {
 ///     #[repr(i8)]
 ///     pub enum S { 5..=7 }
@@ -57,6 +65,24 @@ use syn::{ExprLit, Lit};
 /// pub enum S {
 ///     P5 = 5, P6, P7
 /// }
+/// ```
+///
+/// # Custom path to bounded integer
+///
+/// If your are using the `serde` feature and have `bounded_integer` at a path other than
+/// `::bounded_integer`, then you will need to tell `bounded_integer` the correct path. For example
+/// if `bounded_integer` is instead located at `path::to::bounded_integer`:
+///
+/// ```rust
+/// # mod force_item_scope {
+/// # use bounded_integer_macro::bounded_integer;
+/// # #[cfg(not(feature = "serde"))]
+/// bounded_integer! {
+///     #[repr(i8)]
+///     #[bounded_integer = path::to::bounded_integer]
+///     pub struct S { 5..7 }
+/// }
+/// # }
 /// ```
 ///
 /// # Limitations
@@ -83,6 +109,7 @@ pub fn bounded_integer(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
 enum BoundedInteger {
     Struct {
         attrs: Vec<Attribute>,
+        crate_location: Path,
         repr: Ident,
         vis: Visibility,
         struct_token: Token![struct],
@@ -92,6 +119,7 @@ enum BoundedInteger {
     },
     Enum {
         attrs: Vec<Attribute>,
+        crate_location: Path,
         repr: Ident,
         vis: Visibility,
         enum_token: Token![enum],
@@ -249,13 +277,13 @@ impl BoundedInteger {
 
             /// Checks whether the given value is in the range of the bounded integer.
             #[must_use]
-            #vis fn in_range(n: #repr) -> bool {
+            #vis fn in_range(n: #repr) -> ::core::primitive::bool {
                 #low_check && #high_check
             }
 
             /// Creates a bounded integer if the given value is within the range [`MIN`, `MAX`].
             #[must_use]
-            #vis fn new(n: #repr) -> Option<Self> {
+            #vis fn new(n: #repr) -> ::core::option::Option<Self> {
                 if Self::in_range(n) {
                     // SAFETY: We just asserted that the value is in range.
                     Some(unsafe { Self::new_unchecked(n) })
@@ -311,7 +339,7 @@ impl BoundedInteger {
             /// Raises self to the power of `exp`, using exponentiation by squaring. Panics if it
             /// is out of range.
             #[must_use]
-            #vis fn pow(self, exp: u32) -> Self {
+            #vis fn pow(self, exp: ::core::primitive::u32) -> Self {
                 Self::new(self.get().pow(exp)).expect("Value raised to power out of range")
             }
             /// Calculates the quotient of Euclidean division of `self` by `rhs`. Panics if `rhs`
@@ -404,7 +432,7 @@ impl BoundedInteger {
             tokens.extend(quote! {
                 #[doc = #checked_comment]
                 #[must_use]
-                #vis fn #checked_name(self, #rhs_type) -> Option<Self> {
+                #vis fn #checked_name(self, #rhs_type) -> ::core::option::Option<Self> {
                     self.get().#checked_name(#rhs_value).and_then(Self::new)
                 }
             });
@@ -444,6 +472,52 @@ impl BoundedInteger {
         }
     }
 
+    #[cfg(feature = "serde")]
+    fn generate_serde(&self, tokens: &mut TokenStream) {
+        let ident = self.ident();
+        let repr = self.repr();
+        let crate_location = self.crate_location();
+        let serde = quote!(#crate_location::serde);
+
+        tokens.extend(quote! {
+            impl #serde::Serialize for #ident {
+                fn serialize<S>(&self, serializer: S) -> ::core::result::Result<
+                    <S as #serde::Serializer>::Ok,
+                    <S as #serde::Serializer>::Error,
+                >
+                where
+                    S: #serde::Serializer,
+                {
+                    <#repr as #serde::Serialize>::serialize(&self.get(), serializer)
+                }
+            }
+        });
+
+        tokens.extend(quote! {
+            impl<'de> #serde::Deserialize<'de> for #ident {
+                fn deserialize<D>(deserializer: D) -> ::core::result::Result<
+                    Self,
+                    <D as #serde::Deserializer<'de>>::Error,
+                >
+                where
+                    D: #serde::Deserializer<'de>,
+                {
+                    let value = <#repr as #serde::Deserialize<'de>>::deserialize(deserializer)?;
+                    Self::new(value)
+                        .ok_or_else(|| {
+                            <<D as #serde::Deserializer<'de>>::Error as #serde::de::Error>::custom(
+                                ::core::format_args!(
+                                    "integer out of range, expected it to be between {} and {}",
+                                    Self::MIN_VALUE,
+                                    Self::MAX_VALUE
+                                )
+                            )
+                        })
+                }
+            }
+        });
+    }
+
     fn generate_impl(&self, tokens: &mut TokenStream) {
         let mut inner_tokens = TokenStream::new();
 
@@ -457,12 +531,21 @@ impl BoundedInteger {
 
         self.generate_ops_traits(tokens);
         self.generate_fmt_traits(tokens);
+        #[cfg(feature = "serde")]
+        self.generate_serde(tokens);
     }
 
     fn attrs(&self) -> &Vec<Attribute> {
         match self {
             Self::Struct { attrs, .. } => attrs,
             Self::Enum { attrs, .. } => attrs,
+        }
+    }
+    #[cfg(feature = "serde")]
+    fn crate_location(&self) -> &Path {
+        match self {
+            Self::Struct { crate_location, .. } => crate_location,
+            Self::Enum { crate_location, .. } => crate_location,
         }
     }
     fn repr(&self) -> &Ident {
@@ -488,11 +571,31 @@ impl BoundedInteger {
 impl Parse for BoundedInteger {
     fn parse(input: ParseStream) -> parse::Result<Self> {
         let mut attrs = input.call(Attribute::parse_outer)?;
+
         let repr_pos = attrs
             .iter()
             .position(|attr| attr.path.is_ident("repr"))
             .ok_or_else(|| input.error("no repr attribute on bounded integer"))?;
         let repr = attrs.remove(repr_pos).parse_args()?;
+
+        let crate_location_pos = attrs
+            .iter()
+            .position(|attr| attr.path.is_ident("bounded_integer"));
+        let crate_location = crate_location_pos
+            .map(|crate_location_pos| -> parse::Result<_> {
+                let location: CrateLocation = syn::parse2(attrs.remove(crate_location_pos).tokens)?;
+                Ok(location.0)
+            })
+            .transpose()?
+            .unwrap_or_else(|| Path {
+                leading_colon: Some(Token![::](Span::call_site())),
+                segments: iter::once(PathSegment::from(Ident::new(
+                    "bounded_integer",
+                    Span::call_site(),
+                )))
+                .collect(),
+            });
+
         let vis: Visibility = input.parse()?;
 
         Ok(if input.peek(Token![struct]) {
@@ -503,6 +606,7 @@ impl Parse for BoundedInteger {
             #[allow(clippy::eval_order_dependence)]
             let this = Self::Struct {
                 attrs,
+                crate_location,
                 repr,
                 vis,
                 struct_token,
@@ -527,6 +631,7 @@ impl Parse for BoundedInteger {
             #[allow(clippy::eval_order_dependence)]
             Self::Enum {
                 attrs,
+                crate_location,
                 repr,
                 vis,
                 enum_token: input.parse()?,
@@ -534,9 +639,17 @@ impl Parse for BoundedInteger {
                 brace_token: braced!(range_tokens in input),
                 range: {
                     let range: ExprRange = range_tokens.parse()?;
-                    let (from, to) = range.from.as_deref()
-                        .zip(range.to.as_deref())
-                        .ok_or_else(|| Error::new_spanned(&range, "the bounds of an enum range must be closed"))?;
+                    let (from, to) =
+                        range
+                            .from
+                            .as_deref()
+                            .zip(range.to.as_deref())
+                            .ok_or_else(|| {
+                                Error::new_spanned(
+                                    &range,
+                                    "the bounds of an enum range must be closed",
+                                )
+                            })?;
                     let (from, to) = (eval_expr(from)?, eval_expr(to)?);
                     from..=if let RangeLimits::HalfOpen(_) = range.limits {
                         to - 1
@@ -547,6 +660,14 @@ impl Parse for BoundedInteger {
                 semi_token: input.parse()?,
             }
         })
+    }
+}
+
+struct CrateLocation(Path);
+impl Parse for CrateLocation {
+    fn parse(input: ParseStream) -> parse::Result<Self> {
+        input.parse::<Token![=]>()?;
+        Ok(Self(input.parse::<Path>()?))
     }
 }
 
@@ -583,7 +704,10 @@ fn eval_expr(expr: &Expr) -> syn::Result<isize> {
                 BinOp::BitAnd(_) => left & right,
                 BinOp::BitOr(_) => left | right,
                 _ => {
-                    return Err(Error::new_spanned(op, "operator not supported in this context"));
+                    return Err(Error::new_spanned(
+                        op,
+                        "operator not supported in this context",
+                    ));
                 }
             }
         }
