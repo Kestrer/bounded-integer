@@ -111,6 +111,7 @@ enum BoundedInteger {
         attrs: Vec<Attribute>,
         crate_location: Path,
         repr: Path,
+        repr_unsigned: bool,
         vis: Visibility,
         struct_token: Token![struct],
         ident: Ident,
@@ -121,6 +122,7 @@ enum BoundedInteger {
         attrs: Vec<Attribute>,
         crate_location: Path,
         repr: Path,
+        repr_unsigned: bool,
         vis: Visibility,
         enum_token: Token![enum],
         ident: Ident,
@@ -329,13 +331,20 @@ impl BoundedInteger {
     fn generate_operators(&self, tokens: &mut TokenStream) {
         let vis = self.vis();
         let repr = self.repr();
+        let repr_unsigned = self.repr_unsigned();
+
+        if !repr_unsigned {
+            tokens.extend(quote! {
+                /// Computes the absolute value of `self`, panicking if it is out of range.
+                #[must_use]
+                #vis fn abs(self) -> Self {
+                    Self::new(self.get().abs()).expect("Absolute value out of range")
+                }
+            });
+        }
 
         tokens.extend(quote! {
-            /// Computes the absolute value of `self`, panicking if it is out of range.
-            #[must_use]
-            #vis fn abs(self) -> Self {
-                Self::new(self.get().abs()).expect("Absolute value out of range")
-            }
+            
             /// Raises self to the power of `exp`, using exponentiation by squaring. Panics if it
             /// is out of range.
             #[must_use]
@@ -361,8 +370,13 @@ impl BoundedInteger {
     fn generate_ops_traits(&self, tokens: &mut TokenStream) {
         let ident = self.ident();
         let repr = self.repr();
+        let repr_unsigned = self.repr_unsigned();
 
         for op in OPERATORS {
+            if repr_unsigned && !op.on_unsigned {
+                continue;
+            }
+            
             let description = op.description;
 
             if op.bin {
@@ -412,8 +426,13 @@ impl BoundedInteger {
 
     fn generate_checked_operators(&self, tokens: &mut TokenStream) {
         let vis = self.vis();
+        let repr_unsigned = self.repr_unsigned();
 
         for op in CHECKED_OPERATORS {
+            if repr_unsigned && op.on_unsigned == CheckedOnUnsigned::None {
+                continue;
+            }
+
             // Dummy storage to extend the lifetime of rhs.
             let mut rhs_ident_storage = None;
             let rhs = op.rhs.map(|name| {
@@ -437,6 +456,9 @@ impl BoundedInteger {
                 }
             });
 
+            if repr_unsigned && op.on_unsigned == CheckedOnUnsigned::NoSaturating {
+                continue;
+            }
             if op.saturating {
                 let saturating_name =
                     Ident::new(&format!("saturating_{}", op.name), Span::call_site());
@@ -554,6 +576,12 @@ impl BoundedInteger {
             Self::Enum { repr, .. } => repr,
         }
     }
+    fn repr_unsigned(&self) -> bool {
+        match self {
+            Self::Struct { repr_unsigned, .. } => *repr_unsigned,
+            Self::Enum { repr_unsigned, .. } => *repr_unsigned,
+        }
+    }
     fn vis(&self) -> &Visibility {
         match self {
             Self::Struct { vis, .. } => vis,
@@ -576,7 +604,8 @@ impl Parse for BoundedInteger {
             .iter()
             .position(|attr| attr.path.is_ident("repr"))
             .ok_or_else(|| input.error("no repr attribute on bounded integer"))?;
-        let repr = attrs.remove(repr_pos).parse_args()?;
+        let repr: Path = attrs.remove(repr_pos).parse_args()?;
+        let repr_unsigned = repr.segments.last().unwrap().ident.to_string().starts_with('u');
 
         let crate_location_pos = attrs
             .iter()
@@ -607,6 +636,7 @@ impl Parse for BoundedInteger {
                 attrs,
                 crate_location,
                 repr,
+                repr_unsigned,
                 vis,
                 struct_token,
                 ident: input.parse()?,
@@ -632,6 +662,7 @@ impl Parse for BoundedInteger {
                 attrs,
                 crate_location,
                 repr,
+                repr_unsigned,
                 vis,
                 enum_token: input.parse()?,
                 ident: input.parse()?,
@@ -730,23 +761,31 @@ fn enum_variant(i: isize) -> Ident {
 
 #[rustfmt::skip]
 const CHECKED_OPERATORS: &[CheckedOperator] = &[
-    CheckedOperator::new("add"       , "integer addition"      , Some("Self"), true ),
-    CheckedOperator::new("sub"       , "integer subtraction"   , Some("Self"), true ),
-    CheckedOperator::new("mul"       , "integer multiplication", Some("Self"), true ),
-    CheckedOperator::new("div"       , "integer division"      , Some("Self"), false),
-    CheckedOperator::new("div_euclid", "Euclidean division"    , Some("Self"), false),
-    CheckedOperator::new("rem"       , "integer remainder"     , Some("Self"), false),
-    CheckedOperator::new("rem_euclid", "Euclidean remainder"   , Some("Self"), false),
-    CheckedOperator::new("neg"       , "negation"              , None        , true ),
-    CheckedOperator::new("abs"       , "absolute value"        , None        , true ),
-    CheckedOperator::new("pow"       , "exponentiation"        , Some("u32") , true ),
+    CheckedOperator::new("add"       , "integer addition"      , Some("Self"), true , CheckedOnUnsigned::All         ),
+    CheckedOperator::new("sub"       , "integer subtraction"   , Some("Self"), true , CheckedOnUnsigned::All         ),
+    CheckedOperator::new("mul"       , "integer multiplication", Some("Self"), true , CheckedOnUnsigned::All         ),
+    CheckedOperator::new("div"       , "integer division"      , Some("Self"), false, CheckedOnUnsigned::All         ),
+    CheckedOperator::new("div_euclid", "Euclidean division"    , Some("Self"), false, CheckedOnUnsigned::All         ),
+    CheckedOperator::new("rem"       , "integer remainder"     , Some("Self"), false, CheckedOnUnsigned::All         ),
+    CheckedOperator::new("rem_euclid", "Euclidean remainder"   , Some("Self"), false, CheckedOnUnsigned::All         ),
+    CheckedOperator::new("neg"       , "negation"              , None        , true , CheckedOnUnsigned::NoSaturating),
+    CheckedOperator::new("abs"       , "absolute value"        , None        , true , CheckedOnUnsigned::None        ),
+    CheckedOperator::new("pow"       , "exponentiation"        , Some("u32") , true , CheckedOnUnsigned::All         ),
 ];
+
+#[derive(Eq, PartialEq)]
+enum CheckedOnUnsigned {
+    All,
+    NoSaturating,
+    None
+}
 
 struct CheckedOperator {
     name: &'static str,
     description: &'static str,
     rhs: Option<&'static str>,
     saturating: bool,
+    on_unsigned: CheckedOnUnsigned,
 }
 
 impl CheckedOperator {
@@ -755,24 +794,26 @@ impl CheckedOperator {
         description: &'static str,
         rhs: Option<&'static str>,
         saturating: bool,
+        on_unsigned: CheckedOnUnsigned,
     ) -> Self {
         Self {
             name,
             description,
             rhs,
             saturating,
+            on_unsigned,
         }
     }
 }
 
 #[rustfmt::skip]
 const OPERATORS: &[Operator] = &[
-    Operator { trait_name: "Add", method: "add", description: "add"           , bin: true },
-    Operator { trait_name: "Sub", method: "sub", description: "subtract"      , bin: true },
-    Operator { trait_name: "Mul", method: "mul", description: "multiply"      , bin: true },
-    Operator { trait_name: "Div", method: "div", description: "divide"        , bin: true },
-    Operator { trait_name: "Rem", method: "rem", description: "take remainder", bin: true },
-    Operator { trait_name: "Neg", method: "neg", description: "negate"        , bin: false },
+    Operator { trait_name: "Add", method: "add", description: "add"           , bin: true , on_unsigned: true },
+    Operator { trait_name: "Sub", method: "sub", description: "subtract"      , bin: true , on_unsigned: true },
+    Operator { trait_name: "Mul", method: "mul", description: "multiply"      , bin: true , on_unsigned: true },
+    Operator { trait_name: "Div", method: "div", description: "divide"        , bin: true , on_unsigned: true },
+    Operator { trait_name: "Rem", method: "rem", description: "take remainder", bin: true , on_unsigned: true },
+    Operator { trait_name: "Neg", method: "neg", description: "negate"        , bin: false, on_unsigned: false},
 ];
 
 struct Operator {
@@ -780,6 +821,7 @@ struct Operator {
     method: &'static str,
     description: &'static str,
     bin: bool,
+    on_unsigned: bool,
 }
 
 fn binop_trait_variations<B: ToTokens>(
