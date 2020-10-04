@@ -5,7 +5,7 @@ use std::iter;
 use std::ops::RangeInclusive;
 
 use proc_macro2::{Ident, Literal, Span, TokenStream};
-use quote::{quote, quote_spanned, ToTokens, TokenStreamExt};
+use quote::{quote, quote_spanned, ToTokens};
 use syn::parse::{self, Parse, ParseStream};
 use syn::{braced, parse_macro_input, token::Brace, Token};
 use syn::{Attribute, Error, Expr, Path, PathSegment, Visibility};
@@ -53,7 +53,7 @@ use syn::{ExprLit, Lit};
 /// # use bounded_integer_macro::bounded_integer;
 /// # #[cfg(not(feature = "serde"))]
 /// bounded_integer! {
-///     #[repr(i8)]
+///     #[repr(u8)]
 ///     pub enum S { 5..=7 }
 /// }
 /// # }
@@ -61,7 +61,7 @@ use syn::{ExprLit, Lit};
 /// The generated item should look like this:
 /// ```rust
 /// #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-/// #[repr(i8)]
+/// #[repr(u8)]
 /// pub enum S {
 ///     P5 = 5, P6, P7
 /// }
@@ -105,28 +105,25 @@ pub fn bounded_integer(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
     result.into()
 }
 
-#[allow(dead_code)]
-enum BoundedInteger {
+struct BoundedInteger {
+    attrs: Vec<Attribute>,
+    #[allow(dead_code)]
+    crate_location: Path,
+    repr: Path,
+    repr_unsigned: bool,
+    vis: Visibility,
+    ident: Ident,
+    brace_token: Brace,
+    kind: Kind,
+}
+
+enum Kind {
     Struct {
-        attrs: Vec<Attribute>,
-        crate_location: Path,
-        repr: Path,
-        repr_unsigned: bool,
-        vis: Visibility,
         struct_token: Token![struct],
-        ident: Ident,
-        brace_token: Brace,
         range: Box<(Option<Expr>, Option<Expr>)>,
     },
     Enum {
-        attrs: Vec<Attribute>,
-        crate_location: Path,
-        repr: Path,
-        repr_unsigned: bool,
-        vis: Visibility,
         enum_token: Token![enum],
-        ident: Ident,
-        brace_token: Brace,
         range: RangeInclusive<isize>,
         semi_token: Option<Token![;]>,
     },
@@ -134,82 +131,71 @@ enum BoundedInteger {
 
 impl BoundedInteger {
     fn generate_item(&self, tokens: &mut TokenStream) {
-        for attr in self.attrs() {
+        for attr in &self.attrs {
             attr.to_tokens(tokens);
         }
         tokens.extend(quote! {
             #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
         });
 
-        match self {
-            Self::Struct {
-                repr,
-                vis,
-                struct_token,
-                ident,
-                brace_token,
-                ..
-            } => {
-                vis.to_tokens(tokens);
-                struct_token.to_tokens(tokens);
-                ident.to_tokens(tokens);
-                tokens.extend(quote_spanned!(brace_token.span=> (#repr)));
-                Token![;](Span::call_site()).to_tokens(tokens);
-            }
-            Self::Enum {
-                repr,
-                vis,
-                enum_token,
-                ident,
-                brace_token,
-                range,
-                semi_token,
-                ..
-            } => {
-                tokens.extend(quote!(#[repr(#repr)]));
-                vis.to_tokens(tokens);
-                enum_token.to_tokens(tokens);
-                ident.to_tokens(tokens);
+        if let Kind::Enum { .. } = &self.kind {
+            let repr = &self.repr.segments.last().unwrap().ident;
+            tokens.extend(quote!(#[repr(#repr)]));
+        }
 
+        self.vis.to_tokens(tokens);
+
+        match &self.kind {
+            Kind::Enum { enum_token, .. } => enum_token.to_tokens(tokens),
+            Kind::Struct { struct_token, .. } => struct_token.to_tokens(tokens),
+        }
+
+        self.ident.to_tokens(tokens);
+
+        match &self.kind {
+            Kind::Struct { .. } => {
+                let repr = &self.repr;
+                tokens.extend(quote_spanned!(self.brace_token.span=> (#repr);));
+            }
+            Kind::Enum {
+                range, semi_token, ..
+            } => {
                 let mut inner_tokens = TokenStream::new();
 
                 let mut variants = range.clone().map(enum_variant);
 
                 if let Some(first_variant) = variants.next() {
-                    first_variant.to_tokens(&mut inner_tokens);
-                    Token![=](Span::call_site()).to_tokens(&mut inner_tokens);
-                    inner_tokens.append(Literal::isize_unsuffixed(*range.start()));
+                    let start = Literal::isize_unsuffixed(*range.start());
+                    inner_tokens.extend(quote!(#first_variant = #start));
                 }
                 for variant in variants {
-                    Token![,](Span::call_site()).to_tokens(&mut inner_tokens);
-                    variant.to_tokens(&mut inner_tokens);
+                    inner_tokens.extend(quote!(, #variant));
                 }
 
-                tokens.extend(quote_spanned!(brace_token.span=> { #inner_tokens }));
+                tokens.extend(quote_spanned!(self.brace_token.span=> { #inner_tokens }));
                 semi_token.to_tokens(tokens);
             }
         }
     }
 
     fn generate_consts(&self, tokens: &mut TokenStream) {
-        let vis = self.vis();
-        let repr = self.repr();
+        let repr = &self.repr;
 
         let (min_value, min, max_value, max);
-        match self {
-            Self::Struct { range, .. } => {
-                min_value = match &range.0 {
-                    Some(from) => from.into_token_stream(),
-                    None => quote!(::core::primitive::#repr::MIN),
-                };
+        match &self.kind {
+            Kind::Struct { range, .. } => {
+                min_value = range
+                    .0
+                    .as_ref()
+                    .map_or_else(|| quote!(#repr::MIN), ToTokens::into_token_stream);
                 min = quote!(Self(Self::MIN_VALUE));
-                max_value = match &range.1 {
-                    Some(to) => to.into_token_stream(),
-                    None => quote!(::core::primitive::#repr::MAX),
-                };
+                max_value = range
+                    .1
+                    .as_ref()
+                    .map_or_else(|| quote!(#repr::MAX), ToTokens::into_token_stream);
                 max = quote!(Self(Self::MAX_VALUE));
             }
-            Self::Enum { range, .. } => {
+            Kind::Enum { range, .. } => {
                 min_value = Literal::isize_unsuffixed(*range.start()).into_token_stream();
                 max_value = Literal::isize_unsuffixed(*range.end()).into_token_stream();
                 let min_variant = enum_variant(*range.start());
@@ -218,6 +204,8 @@ impl BoundedInteger {
                 max = quote!(Self::#max_variant);
             }
         }
+
+        let vis = &self.vis;
 
         tokens.extend(quote! {
             /// The smallest value that this bounded integer can contain.
@@ -236,17 +224,16 @@ impl BoundedInteger {
     }
 
     fn generate_base(&self, tokens: &mut TokenStream) {
-        let vis = self.vis();
-        let repr = self.repr();
+        let repr = &self.repr;
 
-        let (get_body, new_body, low_bounded, high_bounded) = match self {
-            Self::Struct { range, .. } => (
+        let (get_body, new_body, low_bounded, high_bounded) = match &self.kind {
+            Kind::Struct { range, .. } => (
                 quote!(self.0),
                 quote!(Self(n)),
                 range.0.is_some(),
                 range.1.is_some(),
             ),
-            Self::Enum { .. } => (
+            Kind::Enum { .. } => (
                 quote!(self as #repr),
                 quote!(::core::mem::transmute::<#repr, Self>(n)),
                 true,
@@ -264,6 +251,8 @@ impl BoundedInteger {
         } else {
             quote!(true)
         };
+
+        let vis = &self.vis;
 
         tokens.extend(quote! {
             /// Creates a bounded integer without checking the value.
@@ -288,9 +277,9 @@ impl BoundedInteger {
             #vis fn new(n: #repr) -> ::core::option::Option<Self> {
                 if Self::in_range(n) {
                     // SAFETY: We just asserted that the value is in range.
-                    Some(unsafe { Self::new_unchecked(n) })
+                    ::core::option::Option::Some(unsafe { Self::new_unchecked(n) })
                 } else {
-                    None
+                    ::core::option::Option::None
                 }
             }
 
@@ -329,11 +318,10 @@ impl BoundedInteger {
     }
 
     fn generate_operators(&self, tokens: &mut TokenStream) {
-        let vis = self.vis();
-        let repr = self.repr();
-        let repr_unsigned = self.repr_unsigned();
+        let vis = &self.vis;
+        let repr = &self.repr;
 
-        if !repr_unsigned {
+        if !self.repr_unsigned {
             tokens.extend(quote! {
                 /// Computes the absolute value of `self`, panicking if it is out of range.
                 #[must_use]
@@ -344,7 +332,6 @@ impl BoundedInteger {
         }
 
         tokens.extend(quote! {
-            
             /// Raises self to the power of `exp`, using exponentiation by squaring. Panics if it
             /// is out of range.
             #[must_use]
@@ -368,27 +355,25 @@ impl BoundedInteger {
     }
 
     fn generate_ops_traits(&self, tokens: &mut TokenStream) {
-        let ident = self.ident();
-        let repr = self.repr();
-        let repr_unsigned = self.repr_unsigned();
+        let repr = &self.repr;
 
         for op in OPERATORS {
-            if repr_unsigned && !op.on_unsigned {
+            if self.repr_unsigned && !op.on_unsigned {
                 continue;
             }
-            
+
             let description = op.description;
 
             if op.bin {
                 binop_trait_variations(
                     op.trait_name,
                     op.method,
-                    ident,
+                    &self.ident,
                     repr,
                     |trait_name, method| {
                         quote! {
                             Self::new(<#repr as ::core::ops::#trait_name>::#method(self.get(), rhs))
-                                .expect(concat!("Attempted to ", #description, " out of range"))
+                                .expect(::core::concat!("Attempted to ", #description, " out of range"))
                         }
                     },
                     tokens,
@@ -397,8 +382,8 @@ impl BoundedInteger {
                 binop_trait_variations(
                     op.trait_name,
                     op.method,
-                    ident,
-                    ident,
+                    &self.ident,
+                    &self.ident,
                     |trait_name, method| {
                         quote! {
                             <Self as ::core::ops::#trait_name<#repr>>::#method(self, rhs.get())
@@ -413,10 +398,10 @@ impl BoundedInteger {
                 unop_trait_variations(
                     &trait_name,
                     &method,
-                    ident,
+                    &self.ident,
                     &quote! {
                         Self::new(<#repr as ::core::ops::#trait_name>::#method(self.get()))
-                            .expect(concat!("Attempted to ", #description, " out of range"))
+                            .expect(::core::concat!("Attempted to ", #description, " out of range"))
                     },
                     tokens,
                 );
@@ -425,11 +410,16 @@ impl BoundedInteger {
     }
 
     fn generate_checked_operators(&self, tokens: &mut TokenStream) {
-        let vis = self.vis();
-        let repr_unsigned = self.repr_unsigned();
+        let vis = &self.vis;
 
         for op in CHECKED_OPERATORS {
-            if repr_unsigned && op.on_unsigned == CheckedOnUnsigned::None {
+            let variants = if self.repr_unsigned {
+                op.unsigned_variants
+            } else {
+                op.signed_variants
+            };
+
+            if variants == NoOps {
                 continue;
             }
 
@@ -437,9 +427,10 @@ impl BoundedInteger {
             let mut rhs_ident_storage = None;
             let rhs = op.rhs.map(|name| {
                 if name == "Self" {
-                    self.repr()
+                    &self.repr
                 } else {
-                    rhs_ident_storage.get_or_insert_with(|| Path::from(Ident::new(name, Span::call_site())))
+                    rhs_ident_storage
+                        .get_or_insert_with(|| Path::from(Ident::new(name, Span::call_site())))
                 }
             });
             let rhs_type = rhs.map(|ty| quote!(rhs: #ty,));
@@ -456,28 +447,26 @@ impl BoundedInteger {
                 }
             });
 
-            if repr_unsigned && op.on_unsigned == CheckedOnUnsigned::NoSaturating {
+            if variants != All {
                 continue;
             }
-            if op.saturating {
-                let saturating_name =
-                    Ident::new(&format!("saturating_{}", op.name), Span::call_site());
-                let saturating_comment = format!("Saturing {}.", op.description);
 
-                tokens.extend(quote! {
-                    #[doc = #saturating_comment]
-                    #[must_use]
-                    #vis fn #saturating_name(self, #rhs_type) -> Self {
-                        Self::new_saturating(self.get().#saturating_name(#rhs_value))
-                    }
-                });
-            }
+            let saturating_name = Ident::new(&format!("saturating_{}", op.name), Span::call_site());
+            let saturating_comment = format!("Saturing {}.", op.description);
+
+            tokens.extend(quote! {
+                #[doc = #saturating_comment]
+                #[must_use]
+                #vis fn #saturating_name(self, #rhs_type) -> Self {
+                    Self::new_saturating(self.get().#saturating_name(#rhs_value))
+                }
+            });
         }
     }
 
     fn generate_fmt_traits(&self, tokens: &mut TokenStream) {
-        let ident = self.ident();
-        let repr = self.repr();
+        let ident = &self.ident;
+        let repr = &self.repr;
 
         for &fmt_trait in &[
             "Binary", "Display", "LowerExp", "LowerHex", "Octal", "UpperExp", "UpperHex",
@@ -496,9 +485,9 @@ impl BoundedInteger {
 
     #[cfg(feature = "serde")]
     fn generate_serde(&self, tokens: &mut TokenStream) {
-        let ident = self.ident();
-        let repr = self.repr();
-        let crate_location = self.crate_location();
+        let ident = &self.ident;
+        let repr = &self.repr;
+        let crate_location = &self.crate_location;
         let serde = quote!(#crate_location::serde);
 
         tokens.extend(quote! {
@@ -548,51 +537,13 @@ impl BoundedInteger {
         self.generate_operators(&mut inner_tokens);
         self.generate_checked_operators(&mut inner_tokens);
 
-        let ident = self.ident();
+        let ident = &self.ident;
         tokens.extend(quote!(impl #ident { #inner_tokens }));
 
         self.generate_ops_traits(tokens);
         self.generate_fmt_traits(tokens);
         #[cfg(feature = "serde")]
         self.generate_serde(tokens);
-    }
-
-    fn attrs(&self) -> &Vec<Attribute> {
-        match self {
-            Self::Struct { attrs, .. } => attrs,
-            Self::Enum { attrs, .. } => attrs,
-        }
-    }
-    #[cfg(feature = "serde")]
-    fn crate_location(&self) -> &Path {
-        match self {
-            Self::Struct { crate_location, .. } => crate_location,
-            Self::Enum { crate_location, .. } => crate_location,
-        }
-    }
-    fn repr(&self) -> &Path {
-        match self {
-            Self::Struct { repr, .. } => repr,
-            Self::Enum { repr, .. } => repr,
-        }
-    }
-    fn repr_unsigned(&self) -> bool {
-        match self {
-            Self::Struct { repr_unsigned, .. } => *repr_unsigned,
-            Self::Enum { repr_unsigned, .. } => *repr_unsigned,
-        }
-    }
-    fn vis(&self) -> &Visibility {
-        match self {
-            Self::Struct { vis, .. } => vis,
-            Self::Enum { vis, .. } => vis,
-        }
-    }
-    fn ident(&self) -> &Ident {
-        match self {
-            Self::Struct { ident, .. } => ident,
-            Self::Enum { ident, .. } => ident,
-        }
     }
 }
 
@@ -605,7 +556,13 @@ impl Parse for BoundedInteger {
             .position(|attr| attr.path.is_ident("repr"))
             .ok_or_else(|| input.error("no repr attribute on bounded integer"))?;
         let repr: Path = attrs.remove(repr_pos).parse_args()?;
-        let repr_unsigned = repr.segments.last().unwrap().ident.to_string().starts_with('u');
+        let repr_unsigned = repr
+            .segments
+            .last()
+            .unwrap()
+            .ident
+            .to_string()
+            .starts_with('u');
 
         let crate_location_pos = attrs
             .iter()
@@ -632,45 +589,49 @@ impl Parse for BoundedInteger {
 
             let range;
             #[allow(clippy::eval_order_dependence)]
-            let this = Self::Struct {
+            let this = Self {
                 attrs,
                 crate_location,
                 repr,
                 repr_unsigned,
                 vis,
-                struct_token,
                 ident: input.parse()?,
                 brace_token: braced!(range in input),
-                range: {
-                    let range: ExprRange = range.parse()?;
-                    let limits = range.limits;
-                    Box::new((
-                        range.from.map(|from| *from),
-                        range.to.map(|to| match limits {
-                            RangeLimits::HalfOpen(_) => Expr::Verbatim(quote!(#to - 1)),
-                            RangeLimits::Closed(_) => *to,
-                        }),
-                    ))
+                kind: Kind::Struct {
+                    struct_token,
+                    range: {
+                        let range: ExprRange = range.parse()?;
+                        let limits = range.limits;
+                        Box::new((
+                            range.from.map(|from| *from),
+                            range.to.map(|to| match limits {
+                                RangeLimits::HalfOpen(_) => Expr::Verbatim(quote!(#to - 1)),
+                                RangeLimits::Closed(_) => *to,
+                            }),
+                        ))
+                    },
                 },
             };
             input.parse::<Option<Token![;]>>()?;
             this
         } else {
+            let enum_token: Token![enum] = input.parse()?;
+
             let range_tokens;
             #[allow(clippy::eval_order_dependence)]
-            Self::Enum {
+            Self {
                 attrs,
                 crate_location,
                 repr,
                 repr_unsigned,
                 vis,
-                enum_token: input.parse()?,
                 ident: input.parse()?,
                 brace_token: braced!(range_tokens in input),
-                range: {
-                    let range: ExprRange = range_tokens.parse()?;
-                    let (from, to) =
-                        range
+                kind: Kind::Enum {
+                    enum_token,
+                    range: {
+                        let range: ExprRange = range_tokens.parse()?;
+                        let (from, to) = range
                             .from
                             .as_deref()
                             .zip(range.to.as_deref())
@@ -680,14 +641,15 @@ impl Parse for BoundedInteger {
                                     "the bounds of an enum range must be closed",
                                 )
                             })?;
-                    let (from, to) = (eval_expr(from)?, eval_expr(to)?);
-                    from..=if let RangeLimits::HalfOpen(_) = range.limits {
-                        to - 1
-                    } else {
-                        to
-                    }
+                        let (from, to) = (eval_expr(from)?, eval_expr(to)?);
+                        from..=if let RangeLimits::HalfOpen(_) = range.limits {
+                            to - 1
+                        } else {
+                            to
+                        }
+                    },
+                    semi_token: input.parse()?,
                 },
-                semi_token: input.parse()?,
             }
         })
     }
@@ -761,31 +723,33 @@ fn enum_variant(i: isize) -> Ident {
 
 #[rustfmt::skip]
 const CHECKED_OPERATORS: &[CheckedOperator] = &[
-    CheckedOperator::new("add"       , "integer addition"      , Some("Self"), true , CheckedOnUnsigned::All         ),
-    CheckedOperator::new("sub"       , "integer subtraction"   , Some("Self"), true , CheckedOnUnsigned::All         ),
-    CheckedOperator::new("mul"       , "integer multiplication", Some("Self"), true , CheckedOnUnsigned::All         ),
-    CheckedOperator::new("div"       , "integer division"      , Some("Self"), false, CheckedOnUnsigned::All         ),
-    CheckedOperator::new("div_euclid", "Euclidean division"    , Some("Self"), false, CheckedOnUnsigned::All         ),
-    CheckedOperator::new("rem"       , "integer remainder"     , Some("Self"), false, CheckedOnUnsigned::All         ),
-    CheckedOperator::new("rem_euclid", "Euclidean remainder"   , Some("Self"), false, CheckedOnUnsigned::All         ),
-    CheckedOperator::new("neg"       , "negation"              , None        , true , CheckedOnUnsigned::NoSaturating),
-    CheckedOperator::new("abs"       , "absolute value"        , None        , true , CheckedOnUnsigned::None        ),
-    CheckedOperator::new("pow"       , "exponentiation"        , Some("u32") , true , CheckedOnUnsigned::All         ),
+    CheckedOperator::new("add"       , "integer addition"      , Some("Self"), All         , All         ),
+    CheckedOperator::new("sub"       , "integer subtraction"   , Some("Self"), All         , All         ),
+    CheckedOperator::new("mul"       , "integer multiplication", Some("Self"), All         , All         ),
+    CheckedOperator::new("div"       , "integer division"      , Some("Self"), NoSaturating, NoSaturating),
+    CheckedOperator::new("div_euclid", "Euclidean division"    , Some("Self"), NoSaturating, NoSaturating),
+    CheckedOperator::new("rem"       , "integer remainder"     , Some("Self"), NoSaturating, NoSaturating),
+    CheckedOperator::new("rem_euclid", "Euclidean remainder"   , Some("Self"), NoSaturating, NoSaturating),
+    CheckedOperator::new("neg"       , "negation"              , None        , All         , NoSaturating),
+    CheckedOperator::new("abs"       , "absolute value"        , None        , All         , NoOps       ),
+    CheckedOperator::new("pow"       , "exponentiation"        , Some("u32") , All         , All         ),
 ];
 
-#[derive(Eq, PartialEq)]
-enum CheckedOnUnsigned {
-    All,
+#[derive(Eq, PartialEq, Clone, Copy)]
+enum Variants {
+    NoOps,
     NoSaturating,
-    None
+    All,
 }
+
+use Variants::*;
 
 struct CheckedOperator {
     name: &'static str,
     description: &'static str,
     rhs: Option<&'static str>,
-    saturating: bool,
-    on_unsigned: CheckedOnUnsigned,
+    signed_variants: Variants,
+    unsigned_variants: Variants,
 }
 
 impl CheckedOperator {
@@ -793,27 +757,27 @@ impl CheckedOperator {
         name: &'static str,
         description: &'static str,
         rhs: Option<&'static str>,
-        saturating: bool,
-        on_unsigned: CheckedOnUnsigned,
+        signed_variants: Variants,
+        unsigned_variants: Variants,
     ) -> Self {
         Self {
             name,
             description,
             rhs,
-            saturating,
-            on_unsigned,
+            signed_variants,
+            unsigned_variants,
         }
     }
 }
 
 #[rustfmt::skip]
 const OPERATORS: &[Operator] = &[
-    Operator { trait_name: "Add", method: "add", description: "add"           , bin: true , on_unsigned: true },
-    Operator { trait_name: "Sub", method: "sub", description: "subtract"      , bin: true , on_unsigned: true },
-    Operator { trait_name: "Mul", method: "mul", description: "multiply"      , bin: true , on_unsigned: true },
-    Operator { trait_name: "Div", method: "div", description: "divide"        , bin: true , on_unsigned: true },
-    Operator { trait_name: "Rem", method: "rem", description: "take remainder", bin: true , on_unsigned: true },
-    Operator { trait_name: "Neg", method: "neg", description: "negate"        , bin: false, on_unsigned: false},
+    Operator { trait_name: "Add", method: "add", description: "add"           , bin: true , on_unsigned: true  },
+    Operator { trait_name: "Sub", method: "sub", description: "subtract"      , bin: true , on_unsigned: true  },
+    Operator { trait_name: "Mul", method: "mul", description: "multiply"      , bin: true , on_unsigned: true  },
+    Operator { trait_name: "Div", method: "div", description: "divide"        , bin: true , on_unsigned: true  },
+    Operator { trait_name: "Rem", method: "rem", description: "take remainder", bin: true , on_unsigned: true  },
+    Operator { trait_name: "Neg", method: "neg", description: "negate"        , bin: false, on_unsigned: false },
 ];
 
 struct Operator {

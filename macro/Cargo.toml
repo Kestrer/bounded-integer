@@ -16,6 +16,6 @@ proc-macro = true
 serde = []
 
 [dependencies]
-proc-macro2 = "1.0.20"
-syn = { version = "1.0.40", features = ["full"] }
+proc-macro2 = "1.0.24"
+syn = { version = "1.0.42", features = ["proc-macro", "parsing", "printing", "full"], default-features = false }
 quote = "1.0.7"
