@@ -1,6 +1,6 @@
 [package]
 name = "bounded-integer"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Koxiaet <38139193+Koxiaet@users.noreply.github.com>"]
 description = "Bounded integers"
 keywords = ["bounded", "integer", "macro", "refinement"]
@@ -10,7 +10,7 @@ readme = "README.md"
 edition = "2018"
 
 [dependencies]
-bounded-integer-macro = { path = "./macro", version = "0.2.2" }
+bounded-integer-macro = { path = "./macro", version = "0.2.3" }
 
 serde_crate = { package = "serde", version = "1.0.116", default-features = false, optional = true }
 
