@@ -605,7 +605,7 @@ impl Parse for BoundedInteger {
             .position(|attr| attr.path.is_ident("repr"))
             .ok_or_else(|| input.error("no repr attribute on bounded integer"))?;
         let repr: Path = attrs.remove(repr_pos).parse_args()?;
-        let repr_unsigned = repr.segments.last().unwrap().ident.to_string().chars().nth(0).unwrap() == 'u';
+        let repr_unsigned = repr.segments.last().unwrap().ident.to_string().starts_with('u');
 
         let crate_location_pos = attrs
             .iter()
