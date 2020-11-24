@@ -5,7 +5,7 @@ use std::iter;
 use std::ops::RangeInclusive;
 
 use proc_macro2::{Ident, Literal, Span, TokenStream};
-use quote::{quote, quote_spanned, ToTokens};
+use quote::{quote, quote_spanned, ToTokens, TokenStreamExt as _};
 use syn::parse::{self, Parse, ParseStream};
 use syn::{braced, parse_macro_input, token::Brace, Token};
 use syn::{Attribute, Error, Expr, Path, PathSegment, Visibility};
@@ -107,14 +107,71 @@ pub fn bounded_integer(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
 
 struct BoundedInteger {
     attrs: Vec<Attribute>,
-    #[allow(dead_code)]
     crate_location: Path,
-    repr: Path,
-    repr_unsigned: bool,
+    repr: Repr,
     vis: Visibility,
     ident: Ident,
     brace_token: Brace,
     kind: Kind,
+}
+
+struct Repr {
+    span: Span,
+    signed: bool,
+    size: ReprSize,
+    origin: Ident,
+}
+
+impl Parse for Repr {
+    fn parse(input: ParseStream) -> parse::Result<Self> {
+        let ident = input.parse::<Ident>()?;
+        let span = ident.span();
+        let s = ident.to_string();
+
+        let (size, signed) = if let Some(size) = s.strip_prefix("i") {
+            (size, true)
+        } else if let Some(size) = s.strip_prefix("u") {
+            (size, false)
+        } else {
+            return Err(Error::new(span, "Repr must a primitive integer type"));
+        };
+
+        let size = match size {
+            "8" => ReprSize::Fixed8,
+            "16" => ReprSize::Fixed16,
+            "32" => ReprSize::Fixed32,
+            "64" => ReprSize::Fixed64,
+            "128" => ReprSize::Fixed128,
+            "size" => ReprSize::Pointer,
+            unknown => {
+                return Err(Error::new(
+                    span,
+                    format_args!(
+                        "Unknown integer size {}, must be one of 8, 16, 32, 64, 128 or size",
+                        unknown
+                    ),
+                ));
+            }
+        };
+
+        Ok(Self { span, signed, size, origin: ident })
+    }
+}
+
+impl ToTokens for Repr {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        tokens.append(self.origin.clone());
+    }
+}
+
+enum ReprSize {
+    Fixed8,
+    Fixed16,
+    Fixed32,
+    Fixed64,
+    Fixed128,
+    /// `usize`/`isize`
+    Pointer,
 }
 
 enum Kind {
@@ -131,6 +188,8 @@ enum Kind {
 
 impl BoundedInteger {
     fn generate_item(&self, tokens: &mut TokenStream) {
+        let repr = &self.repr;
+
         for attr in &self.attrs {
             attr.to_tokens(tokens);
         }
@@ -139,7 +198,6 @@ impl BoundedInteger {
         });
 
         if let Kind::Enum { .. } = &self.kind {
-            let repr = &self.repr.segments.last().unwrap().ident;
             tokens.extend(quote!(#[repr(#repr)]));
         }
 
@@ -154,8 +212,7 @@ impl BoundedInteger {
 
         match &self.kind {
             Kind::Struct { .. } => {
-                let repr = &self.repr;
-                tokens.extend(quote_spanned!(self.brace_token.span=> (#repr);));
+                tokens.extend(quote_spanned!(self.brace_token.span=> (::core::primitive::#repr);));
             }
             Kind::Enum {
                 range, semi_token, ..
@@ -187,12 +244,12 @@ impl BoundedInteger {
                 min_value = range
                     .0
                     .as_ref()
-                    .map_or_else(|| quote!(#repr::MIN), ToTokens::into_token_stream);
+                    .map_or_else(|| quote!(::core::primitive::#repr::MIN), ToTokens::into_token_stream);
                 min = quote!(Self(Self::MIN_VALUE));
                 max_value = range
                     .1
                     .as_ref()
-                    .map_or_else(|| quote!(#repr::MAX), ToTokens::into_token_stream);
+                    .map_or_else(|| quote!(::core::primitive::#repr::MAX), ToTokens::into_token_stream);
                 max = quote!(Self(Self::MAX_VALUE));
             }
             Kind::Enum { range, .. } => {
@@ -209,9 +266,9 @@ impl BoundedInteger {
 
         tokens.extend(quote! {
             /// The smallest value that this bounded integer can contain.
-            #vis const MIN_VALUE: #repr = #min_value;
+            #vis const MIN_VALUE: ::core::primitive::#repr = #min_value;
             /// The largest value that this bounded integer can contain.
-            #vis const MAX_VALUE: #repr = #max_value;
+            #vis const MAX_VALUE: ::core::primitive::#repr = #max_value;
 
             /// The smallest value of the bounded integer.
             #vis const MIN: Self = #min;
@@ -219,7 +276,7 @@ impl BoundedInteger {
             #vis const MAX: Self = #max;
 
             /// The number of values the bounded integer can contain.
-            #vis const RANGE: #repr = Self::MAX_VALUE - Self::MIN_VALUE + 1;
+            #vis const RANGE: ::core::primitive::#repr = Self::MAX_VALUE - Self::MIN_VALUE + 1;
         });
     }
 
@@ -234,8 +291,8 @@ impl BoundedInteger {
                 range.1.is_some(),
             ),
             Kind::Enum { .. } => (
-                quote!(self as #repr),
-                quote!(::core::mem::transmute::<#repr, Self>(n)),
+                quote!(self as ::core::primitive::#repr),
+                quote!(::core::mem::transmute::<::core::primitive::#repr, Self>(n)),
                 true,
                 true,
             ),
@@ -262,19 +319,19 @@ impl BoundedInteger {
             /// The value must not be outside the valid range of values; it must not be less than
             /// `MIN` or greater than `MAX`.
             #[must_use]
-            #vis unsafe fn new_unchecked(n: #repr) -> Self {
+            #vis unsafe fn new_unchecked(n: ::core::primitive::#repr) -> Self {
                 #new_body
             }
 
             /// Checks whether the given value is in the range of the bounded integer.
             #[must_use]
-            #vis fn in_range(n: #repr) -> ::core::primitive::bool {
+            #vis fn in_range(n: ::core::primitive::#repr) -> ::core::primitive::bool {
                 #low_check && #high_check
             }
 
             /// Creates a bounded integer if the given value is within the range [`MIN`, `MAX`].
             #[must_use]
-            #vis fn new(n: #repr) -> ::core::option::Option<Self> {
+            #vis fn new(n: ::core::primitive::#repr) -> ::core::option::Option<Self> {
                 if Self::in_range(n) {
                     // SAFETY: We just asserted that the value is in range.
                     ::core::option::Option::Some(unsafe { Self::new_unchecked(n) })
@@ -286,7 +343,7 @@ impl BoundedInteger {
             /// Creates a bounded integer by setting the value to `MIN` or `MAX` if it is too low
             /// or too high respectively.
             #[must_use]
-            #vis fn new_saturating(n: #repr) -> Self {
+            #vis fn new_saturating(n: ::core::primitive::#repr) -> Self {
                 if !(#low_check) {
                     Self::MIN
                 } else if !(#high_check) {
@@ -300,7 +357,7 @@ impl BoundedInteger {
             /// Creates a bounded integer by using modulo arithmetic. Values in the range won't be
             /// changed but values outside will be wrapped around.
             #[must_use]
-            #vis fn new_wrapping(n: #repr) -> Self {
+            #vis fn new_wrapping(n: ::core::primitive::#repr) -> Self {
                 unsafe {
                     Self::new_unchecked(
                         (n + (Self::RANGE - (Self::MIN_VALUE.rem_euclid(Self::RANGE)))).rem_euclid(Self::RANGE)
@@ -311,7 +368,7 @@ impl BoundedInteger {
 
             /// Gets the value of the bounded integer as a primitive type.
             #[must_use]
-            #vis fn get(self) -> #repr {
+            #vis fn get(self) -> ::core::primitive::#repr {
                 #get_body
             }
         });
@@ -321,7 +378,7 @@ impl BoundedInteger {
         let vis = &self.vis;
         let repr = &self.repr;
 
-        if !self.repr_unsigned {
+        if self.repr.signed {
             tokens.extend(quote! {
                 /// Computes the absolute value of `self`, panicking if it is out of range.
                 #[must_use]
@@ -341,13 +398,13 @@ impl BoundedInteger {
             /// Calculates the quotient of Euclidean division of `self` by `rhs`. Panics if `rhs`
             /// is 0 or the result is out of range.
             #[must_use]
-            #vis fn div_euclid(self, rhs: #repr) -> Self {
+            #vis fn div_euclid(self, rhs: ::core::primitive::#repr) -> Self {
                 Self::new(self.get().div_euclid(rhs)).expect("Attempted to divide out of range")
             }
             /// Calculates the least nonnegative remainder of `self (mod rhs)`. Panics if `rhs` is 0
             /// or the result is out of range.
             #[must_use]
-            #vis fn rem_euclid(self, rhs: #repr) -> Self {
+            #vis fn rem_euclid(self, rhs: ::core::primitive::#repr) -> Self {
                 Self::new(self.get().rem_euclid(rhs))
                     .expect("Attempted to divide with remainder out of range")
             }
@@ -356,9 +413,10 @@ impl BoundedInteger {
 
     fn generate_ops_traits(&self, tokens: &mut TokenStream) {
         let repr = &self.repr;
+        let full_repr = quote!(::core::primitive::#repr);
 
         for op in OPERATORS {
-            if self.repr_unsigned && !op.on_unsigned {
+            if !self.repr.signed && !op.on_unsigned {
                 continue;
             }
 
@@ -369,10 +427,10 @@ impl BoundedInteger {
                     op.trait_name,
                     op.method,
                     &self.ident,
-                    repr,
+                    &full_repr,
                     |trait_name, method| {
                         quote! {
-                            Self::new(<#repr as ::core::ops::#trait_name>::#method(self.get(), rhs))
+                            Self::new(<::core::primitive::#repr as ::core::ops::#trait_name>::#method(self.get(), rhs))
                                 .expect(::core::concat!("Attempted to ", #description, " out of range"))
                         }
                     },
@@ -386,7 +444,7 @@ impl BoundedInteger {
                     &self.ident,
                     |trait_name, method| {
                         quote! {
-                            <Self as ::core::ops::#trait_name<#repr>>::#method(self, rhs.get())
+                            <Self as ::core::ops::#trait_name<::core::primitive::#repr>>::#method(self, rhs.get())
                         }
                     },
                     tokens,
@@ -400,7 +458,7 @@ impl BoundedInteger {
                     &method,
                     &self.ident,
                     &quote! {
-                        Self::new(<#repr as ::core::ops::#trait_name>::#method(self.get()))
+                        Self::new(<::core::primitive::#repr as ::core::ops::#trait_name>::#method(self.get()))
                             .expect(::core::concat!("Attempted to ", #description, " out of range"))
                     },
                     tokens,
@@ -413,27 +471,28 @@ impl BoundedInteger {
         let vis = &self.vis;
 
         for op in CHECKED_OPERATORS {
-            let variants = if self.repr_unsigned {
-                op.unsigned_variants
-            } else {
+            let variants = if self.repr.signed {
                 op.signed_variants
+            } else {
+                op.unsigned_variants
             };
 
             if variants == NoOps {
                 continue;
             }
 
-            // Dummy storage to extend the lifetime of rhs.
-            let mut rhs_ident_storage = None;
-            let rhs = op.rhs.map(|name| {
-                if name == "Self" {
-                    &self.repr
-                } else {
-                    rhs_ident_storage
-                        .get_or_insert_with(|| Path::from(Ident::new(name, Span::call_site())))
-                }
-            });
-            let rhs_type = rhs.map(|ty| quote!(rhs: #ty,));
+            let rhs = match op.rhs {
+                Some("Self") => Some({
+                    let repr = &self.repr;
+                    quote!(::core::primitive::#repr)
+                }),
+                Some(name) => Some({
+                    let ident = Ident::new(name, Span::call_site());
+                    quote!(::core::primitive::#ident)
+                }),
+                None => None,
+            };
+            let rhs_type = rhs.as_ref().map(|ty| quote!(rhs: #ty,));
             let rhs_value = rhs.map(|_| quote!(rhs,));
 
             let checked_name = Ident::new(&format!("checked_{}", op.name), Span::call_site());
@@ -476,7 +535,7 @@ impl BoundedInteger {
             tokens.extend(quote! {
                 impl ::core::fmt::#fmt_trait for #ident {
                     fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-                        <#repr as ::core::fmt::#fmt_trait>::fmt(&self.get(), f)
+                        <::core::primitive::#repr as ::core::fmt::#fmt_trait>::fmt(&self.get(), f)
                     }
                 }
             });
@@ -555,14 +614,7 @@ impl Parse for BoundedInteger {
             .iter()
             .position(|attr| attr.path.is_ident("repr"))
             .ok_or_else(|| input.error("no repr attribute on bounded integer"))?;
-        let repr: Path = attrs.remove(repr_pos).parse_args()?;
-        let repr_unsigned = repr
-            .segments
-            .last()
-            .unwrap()
-            .ident
-            .to_string()
-            .starts_with('u');
+        let repr: Repr = attrs.remove(repr_pos).parse_args()?;
 
         let crate_location_pos = attrs
             .iter()
@@ -593,7 +645,6 @@ impl Parse for BoundedInteger {
                 attrs,
                 crate_location,
                 repr,
-                repr_unsigned,
                 vis,
                 ident: input.parse()?,
                 brace_token: braced!(range in input),
@@ -623,7 +674,6 @@ impl Parse for BoundedInteger {
                 attrs,
                 crate_location,
                 repr,
-                repr_unsigned,
                 vis,
                 ident: input.parse()?,
                 brace_token: braced!(range_tokens in input),
