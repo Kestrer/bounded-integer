@@ -14,7 +14,7 @@
 
 #[cfg(feature = "serde")]
 #[doc(hidden)]
-pub use serde_crate as serde;
+pub use serde_crate as __serde;
 
 #[cfg(feature = "examples")]
 pub mod examples;

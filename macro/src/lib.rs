@@ -1,14 +1,19 @@
 //! A macro for generating bounded integer structs and enums.
+#![warn(
+    clippy::pedantic,
+    rust_2018_idioms,
+    missing_docs,
+    unused_qualifications,
+)]
 
 use std::cmp::Ordering;
-use std::iter;
 use std::ops::RangeInclusive;
 
 use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::{quote, quote_spanned, ToTokens, TokenStreamExt as _};
 use syn::parse::{self, Parse, ParseStream};
 use syn::{braced, parse_macro_input, token::Brace, Token};
-use syn::{Attribute, Error, Expr, Path, PathSegment, Visibility};
+use syn::{Attribute, Error, Expr, Path, Visibility};
 use syn::{BinOp, ExprBinary, ExprRange, ExprUnary, RangeLimits, UnOp};
 use syn::{ExprGroup, ExprParen};
 use syn::{ExprLit, Lit};
@@ -30,7 +35,7 @@ use syn::{ExprLit, Lit};
 ///
 /// # Examples
 /// With a struct:
-/// ```rust
+/// ```
 /// # mod force_item_scope {
 /// # use bounded_integer_macro::bounded_integer;
 /// # #[cfg(not(feature = "serde"))]
@@ -41,14 +46,14 @@ use syn::{ExprLit, Lit};
 /// # }
 /// ```
 /// The generated item should look like this:
-/// ```rust
+/// ```
 /// #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// pub struct S(i8);
 /// ```
 /// And the methods will ensure that `-3 <= S.0 < 2`.
 ///
 /// With an enum:
-/// ```rust
+/// ```
 /// # mod force_item_scope {
 /// # use bounded_integer_macro::bounded_integer;
 /// # #[cfg(not(feature = "serde"))]
@@ -59,7 +64,7 @@ use syn::{ExprLit, Lit};
 /// # }
 /// ```
 /// The generated item should look like this:
-/// ```rust
+/// ```
 /// #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// #[repr(u8)]
 /// pub enum S {
@@ -69,20 +74,18 @@ use syn::{ExprLit, Lit};
 ///
 /// # Custom path to bounded integer
 ///
-/// If your are using the `serde` feature and have `bounded_integer` at a path other than
-/// `::bounded_integer`, then you will need to tell `bounded_integer` the correct path. For example
-/// if `bounded_integer` is instead located at `path::to::bounded_integer`:
+/// `bounded-integer` will assume that it is located at `::bounded_integer` by default. You can
+/// override this by adding a `bounded_integer` attribute to your item. For example if
+/// `bounded_integer` is instead located at `path::to::bounded_integer`:
 ///
-/// ```rust
+/// ```ignore
 /// # mod force_item_scope {
 /// # use bounded_integer_macro::bounded_integer;
-/// # #[cfg(not(feature = "serde"))]
 /// bounded_integer! {
 ///     #[repr(i8)]
 ///     #[bounded_integer = path::to::bounded_integer]
 ///     pub struct S { 5..7 }
 /// }
-/// # }
 /// ```
 ///
 /// # Limitations
@@ -94,7 +97,6 @@ use syn::{ExprLit, Lit};
 ///     remainder (`x%y`).
 ///     - Bitwise not (`!x`), XOR (`x^y`), AND (`x&y`) and OR (`x|y`).
 /// - The above limitations do not apply to struct ranges.
-
 #[proc_macro]
 pub fn bounded_integer(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let bounded_integer = parse_macro_input!(input as BoundedInteger);
@@ -107,7 +109,8 @@ pub fn bounded_integer(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
 
 struct BoundedInteger {
     attrs: Vec<Attribute>,
-    crate_location: Path,
+    #[cfg(feature = "serde")]
+    serde: TokenStream,
     repr: Repr,
     vis: Visibility,
     ident: Ident,
@@ -116,14 +119,18 @@ struct BoundedInteger {
 }
 
 struct Repr {
+    // We might use this later
+    #[allow(dead_code)]
     span: Span,
     signed: bool,
+    // We might use this later
+    #[allow(dead_code)]
     size: ReprSize,
     origin: Ident,
 }
 
 impl Parse for Repr {
-    fn parse(input: ParseStream) -> parse::Result<Self> {
+    fn parse(input: ParseStream<'_>) -> parse::Result<Self> {
         let ident = input.parse::<Ident>()?;
         let span = ident.span();
         let s = ident.to_string();
@@ -546,8 +553,7 @@ impl BoundedInteger {
     fn generate_serde(&self, tokens: &mut TokenStream) {
         let ident = &self.ident;
         let repr = &self.repr;
-        let crate_location = &self.crate_location;
-        let serde = quote!(#crate_location::serde);
+        let serde = &self.serde;
 
         tokens.extend(quote! {
             impl #serde::Serialize for #ident {
@@ -558,7 +564,7 @@ impl BoundedInteger {
                 where
                     S: #serde::Serializer,
                 {
-                    <#repr as #serde::Serialize>::serialize(&self.get(), serializer)
+                    <::core::primitive::#repr as #serde::Serialize>::serialize(&self.get(), serializer)
                 }
             }
         });
@@ -572,7 +578,7 @@ impl BoundedInteger {
                 where
                     D: #serde::Deserializer<'de>,
                 {
-                    let value = <#repr as #serde::Deserialize<'de>>::deserialize(deserializer)?;
+                    let value = <::core::primitive::#repr as #serde::Deserialize<'de>>::deserialize(deserializer)?;
                     Self::new(value)
                         .ok_or_else(|| {
                             <<D as #serde::Deserializer<'de>>::Error as #serde::de::Error>::custom(
@@ -607,7 +613,7 @@ impl BoundedInteger {
 }
 
 impl Parse for BoundedInteger {
-    fn parse(input: ParseStream) -> parse::Result<Self> {
+    fn parse(input: ParseStream<'_>) -> parse::Result<Self> {
         let mut attrs = input.call(Attribute::parse_outer)?;
 
         let repr_pos = attrs
@@ -619,20 +625,16 @@ impl Parse for BoundedInteger {
         let crate_location_pos = attrs
             .iter()
             .position(|attr| attr.path.is_ident("bounded_integer"));
+        #[cfg_attr(not(feature = "serde"), allow(unused_variables))]
         let crate_location = crate_location_pos
             .map(|crate_location_pos| -> parse::Result<_> {
                 let location: CrateLocation = syn::parse2(attrs.remove(crate_location_pos).tokens)?;
-                Ok(location.0)
+                Ok(location.0.into_token_stream())
             })
             .transpose()?
-            .unwrap_or_else(|| Path {
-                leading_colon: Some(Token![::](Span::call_site())),
-                segments: iter::once(PathSegment::from(Ident::new(
-                    "bounded_integer",
-                    Span::call_site(),
-                )))
-                .collect(),
-            });
+            .unwrap_or_else(|| quote!(::bounded_integer));
+        #[cfg(feature = "serde")]
+        let serde = quote!(#crate_location::__serde);
 
         let vis: Visibility = input.parse()?;
 
@@ -643,7 +645,8 @@ impl Parse for BoundedInteger {
             #[allow(clippy::eval_order_dependence)]
             let this = Self {
                 attrs,
-                crate_location,
+                #[cfg(feature = "serde")]
+                serde,
                 repr,
                 vis,
                 ident: input.parse()?,
@@ -672,7 +675,8 @@ impl Parse for BoundedInteger {
             #[allow(clippy::eval_order_dependence)]
             Self {
                 attrs,
-                crate_location,
+                #[cfg(feature = "serde")]
+                serde,
                 repr,
                 vis,
                 ident: input.parse()?,
@@ -707,7 +711,7 @@ impl Parse for BoundedInteger {
 
 struct CrateLocation(Path);
 impl Parse for CrateLocation {
-    fn parse(input: ParseStream) -> parse::Result<Self> {
+    fn parse(input: ParseStream<'_>) -> parse::Result<Self> {
         input.parse::<Token![=]>()?;
         Ok(Self(input.parse::<Path>()?))
     }
@@ -792,7 +796,7 @@ enum Variants {
     All,
 }
 
-use Variants::*;
+use Variants::{NoOps, NoSaturating, All};
 
 struct CheckedOperator {
     name: &'static str,
