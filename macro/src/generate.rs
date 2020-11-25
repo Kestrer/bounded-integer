@@ -6,17 +6,18 @@ use quote::{quote, quote_spanned, ToTokens};
 use crate::{BoundedInteger, Kind};
 
 pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
-    generate_item(&item, tokens);
+    generate_item(item, tokens);
 
-    generate_consts(&item, tokens);
-    generate_base(&item, tokens);
-    generate_operators(&item, tokens);
-    generate_checked_operators(&item, tokens);
+    generate_consts(item, tokens);
+    generate_base(item, tokens);
+    generate_operators(item, tokens);
+    generate_checked_operators(item, tokens);
 
-    generate_ops_traits(&item, tokens);
-    generate_fmt_traits(&item, tokens);
+    generate_cmp_traits(item, tokens);
+    generate_ops_traits(item, tokens);
+    generate_fmt_traits(item, tokens);
     #[cfg(feature = "serde")]
-    generate_serde(&item, tokens);
+    generate_serde(item, tokens);
 }
 
 fn generate_item(item: &BoundedInteger, tokens: &mut TokenStream) {
@@ -73,15 +74,15 @@ fn generate_consts(item: &BoundedInteger, tokens: &mut TokenStream) {
     let (min_value, min, max_value, max);
     match &item.kind {
         Kind::Struct { range, .. } => {
-            min_value = range
-                .0
-                .as_ref()
-                .map_or_else(|| quote!(::core::primitive::#repr::MIN), ToTokens::into_token_stream);
+            min_value = range.0.as_ref().map_or_else(
+                || quote!(::core::primitive::#repr::MIN),
+                ToTokens::into_token_stream,
+            );
             min = quote!(Self(Self::MIN_VALUE));
-            max_value = range
-                .1
-                .as_ref()
-                .map_or_else(|| quote!(::core::primitive::#repr::MAX), ToTokens::into_token_stream);
+            max_value = range.1.as_ref().map_or_else(
+                || quote!(::core::primitive::#repr::MAX),
+                ToTokens::into_token_stream,
+            );
             max = quote!(Self(Self::MAX_VALUE));
         }
         Kind::Enum { range, .. } => {
@@ -252,6 +253,41 @@ fn generate_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
             #vis fn rem_euclid(self, rhs: ::core::primitive::#repr) -> Self {
                 Self::new(self.get().rem_euclid(rhs))
                     .expect("Attempted to divide with remainder out of range")
+            }
+        }
+    });
+}
+
+fn generate_cmp_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let ident = &item.ident;
+    let repr = &item.repr;
+
+    // These are only impls that can't be derived
+    tokens.extend(quote! {
+        impl ::core::cmp::PartialEq<::core::primitive::#repr> for #ident {
+            fn eq(&self, other: &::core::primitive::#repr) -> bool {
+                self.get() == *other
+            }
+        }
+        impl ::core::cmp::PartialEq<#ident> for ::core::primitive::#repr {
+            fn eq(&self, other: &#ident) -> bool {
+                *self == other.get()
+            }
+        }
+        impl ::core::cmp::PartialOrd<::core::primitive::#repr> for #ident {
+            fn partial_cmp(
+                &self,
+                other: &::core::primitive::#repr
+            ) -> ::core::option::Option<::core::cmp::Ordering> {
+                ::core::cmp::PartialOrd::partial_cmp(&self.get(), other)
+            }
+        }
+        impl ::core::cmp::PartialOrd<#ident> for ::core::primitive::#repr {
+            fn partial_cmp(
+                &self,
+                other: &#ident
+            ) -> ::core::option::Option<::core::cmp::Ordering> {
+                ::core::cmp::PartialOrd::partial_cmp(self, &other.get())
             }
         }
     });
@@ -471,7 +507,7 @@ enum Variants {
     All,
 }
 
-use Variants::{NoOps, NoSaturating, All};
+use Variants::{All, NoOps, NoSaturating};
 
 struct CheckedOperator {
     name: &'static str,
@@ -591,4 +627,65 @@ fn unop_trait_variations(
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use syn::parse2;
+
+    fn assert_result(
+        f: impl FnOnce(&BoundedInteger, &mut TokenStream),
+        input: TokenStream,
+        expected: TokenStream,
+    ) {
+        let mut result = TokenStream::new();
+        f(&parse2::<BoundedInteger>(input).unwrap(), &mut result);
+        assert_eq!(result.to_string(), expected.to_string());
+    }
+
+    #[test]
+    fn test_tokens() {
+        assert_result(
+            generate_item,
+            quote! {
+                #[repr(isize)]
+                pub(crate) enum Nibble { -8..6+2 }
+            },
+            quote! {
+                #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+                #[repr(isize)]
+                pub(crate) enum Nibble {
+                    N8 = -8, N7, N6, N5, N4, N3, N2, N1, Z0, P1, P2, P3, P4, P5, P6, P7
+                }
+            },
+        );
+
+        assert_result(
+            generate_item,
+            quote! {
+                #[repr(u16)]
+                enum Nibble { 3..=7 };
+            },
+            quote! {
+                #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+                #[repr(u16)]
+                enum Nibble {
+                    P3 = 3, P4, P5, P6, P7
+                };
+            },
+        );
+
+        assert_result(
+            generate_item,
+            quote! {
+                #[repr(i8)]
+                pub struct S { -3..2 }
+            },
+            quote! {
+                #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+                pub struct S(i8);
+            },
+        );
+    }
 }

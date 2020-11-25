@@ -3,7 +3,7 @@
     clippy::pedantic,
     rust_2018_idioms,
     missing_docs,
-    unused_qualifications,
+    unused_qualifications
 )]
 
 use std::ops::RangeInclusive;
@@ -278,7 +278,12 @@ impl Parse for Repr {
             }
         };
 
-        Ok(Self { span, signed, size, origin: ident })
+        Ok(Self {
+            span,
+            signed,
+            size,
+            origin: ident,
+        })
     }
 }
 
@@ -343,66 +348,4 @@ fn eval_expr(expr: &Expr) -> syn::Result<isize> {
         }
         _ => return Err(Error::new_spanned(expr, "expected simple expression")),
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use syn::parse2;
-
-    fn assert_result(
-        f: impl FnOnce(&BoundedInteger, &mut TokenStream),
-        input: TokenStream,
-        expected: TokenStream,
-    ) {
-        let mut result = TokenStream::new();
-        f(&parse2::<BoundedInteger>(input).unwrap(), &mut result);
-        assert_eq!(result.to_string(), expected.to_string());
-    }
-
-    #[cfg(test)]
-    #[test]
-    fn test_tokens() {
-        assert_result(
-            BoundedInteger::generate_item,
-            quote! {
-                #[repr(isize)]
-                pub(crate) enum Nibble { -8..6+2 }
-            },
-            quote! {
-                #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-                #[repr(isize)]
-                pub(crate) enum Nibble {
-                    N8 = -8, N7, N6, N5, N4, N3, N2, N1, Z0, P1, P2, P3, P4, P5, P6, P7
-                }
-            },
-        );
-
-        assert_result(
-            BoundedInteger::generate_item,
-            quote! {
-                #[repr(u16)]
-                enum Nibble { 3..=7 };
-            },
-            quote! {
-                #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-                #[repr(u16)]
-                enum Nibble {
-                    P3 = 3, P4, P5, P6, P7
-                };
-            },
-        );
-
-        assert_result(
-            BoundedInteger::generate_item,
-            quote! {
-                #[repr(i8)]
-                pub struct S { -3..2 }
-            },
-            quote! {
-                #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-                pub struct S(i8);
-            },
-        );
-    }
 }
