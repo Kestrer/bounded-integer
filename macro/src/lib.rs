@@ -105,17 +105,10 @@ pub fn bounded_integer(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
 
     generate_item(&item, &mut result);
 
-    {
-        let mut impl_tokens = TokenStream::new();
-
-        generate_consts(&item, &mut impl_tokens);
-        generate_base(&item, &mut impl_tokens);
-        generate_operators(&item, &mut impl_tokens);
-        generate_checked_operators(&item, &mut impl_tokens);
-
-        let ident = &item.ident;
-        result.extend(quote!(impl #ident { #impl_tokens }));
-    }
+    generate_consts(&item, &mut result);
+    generate_base(&item, &mut result);
+    generate_operators(&item, &mut result);
+    generate_checked_operators(&item, &mut result);
 
     generate_ops_traits(&item, &mut result);
     generate_fmt_traits(&item, &mut result);
@@ -286,21 +279,24 @@ fn generate_consts(item: &BoundedInteger, tokens: &mut TokenStream) {
         }
     }
 
+    let ident = &item.ident;
     let vis = &item.vis;
 
     tokens.extend(quote! {
-        /// The smallest value that this bounded integer can contain.
-        #vis const MIN_VALUE: ::core::primitive::#repr = #min_value;
-        /// The largest value that this bounded integer can contain.
-        #vis const MAX_VALUE: ::core::primitive::#repr = #max_value;
+        impl #ident {
+            /// The smallest value that this bounded integer can contain.
+            #vis const MIN_VALUE: ::core::primitive::#repr = #min_value;
+            /// The largest value that this bounded integer can contain.
+            #vis const MAX_VALUE: ::core::primitive::#repr = #max_value;
 
-        /// The smallest value of the bounded integer.
-        #vis const MIN: Self = #min;
-        /// The largest value of the bounded integer.
-        #vis const MAX: Self = #max;
+            /// The smallest value of the bounded integer.
+            #vis const MIN: Self = #min;
+            /// The largest value of the bounded integer.
+            #vis const MAX: Self = #max;
 
-        /// The number of values the bounded integer can contain.
-        #vis const RANGE: ::core::primitive::#repr = Self::MAX_VALUE - Self::MIN_VALUE + 1;
+            /// The number of values the bounded integer can contain.
+            #vis const RANGE: ::core::primitive::#repr = Self::MAX_VALUE - Self::MIN_VALUE + 1;
+        }
     });
 }
 
@@ -333,67 +329,70 @@ fn generate_base(item: &BoundedInteger, tokens: &mut TokenStream) {
         quote!(true)
     };
 
+    let ident = &item.ident;
     let vis = &item.vis;
 
     tokens.extend(quote! {
-        /// Creates a bounded integer without checking the value.
-        ///
-        /// # Safety
-        ///
-        /// The value must not be outside the valid range of values; it must not be less than
-        /// `MIN` or greater than `MAX`.
-        #[must_use]
-        #vis unsafe fn new_unchecked(n: ::core::primitive::#repr) -> Self {
-            #new_body
-        }
-
-        /// Checks whether the given value is in the range of the bounded integer.
-        #[must_use]
-        #vis fn in_range(n: ::core::primitive::#repr) -> ::core::primitive::bool {
-            #low_check && #high_check
-        }
-
-        /// Creates a bounded integer if the given value is within the range [`MIN`, `MAX`].
-        #[must_use]
-        #vis fn new(n: ::core::primitive::#repr) -> ::core::option::Option<Self> {
-            if Self::in_range(n) {
-                // SAFETY: We just asserted that the value is in range.
-                ::core::option::Option::Some(unsafe { Self::new_unchecked(n) })
-            } else {
-                ::core::option::Option::None
+        impl #ident {
+            /// Creates a bounded integer without checking the value.
+            ///
+            /// # Safety
+            ///
+            /// The value must not be outside the valid range of values; it must not be less than
+            /// `MIN` or greater than `MAX`.
+            #[must_use]
+            #vis unsafe fn new_unchecked(n: ::core::primitive::#repr) -> Self {
+                #new_body
             }
-        }
 
-        /// Creates a bounded integer by setting the value to `MIN` or `MAX` if it is too low
-        /// or too high respectively.
-        #[must_use]
-        #vis fn new_saturating(n: ::core::primitive::#repr) -> Self {
-            if !(#low_check) {
-                Self::MIN
-            } else if !(#high_check) {
-                Self::MAX
-            } else {
-                // SAFETY: This branch can only happen if n is in range.
-                unsafe { Self::new_unchecked(n) }
+            /// Checks whether the given value is in the range of the bounded integer.
+            #[must_use]
+            #vis fn in_range(n: ::core::primitive::#repr) -> ::core::primitive::bool {
+                #low_check && #high_check
             }
-        }
 
-        /// Creates a bounded integer by using modulo arithmetic. Values in the range won't be
-        /// changed but values outside will be wrapped around.
-        #[must_use]
-        #vis fn new_wrapping(n: ::core::primitive::#repr) -> Self {
-            unsafe {
-                Self::new_unchecked(
-                    (n + (Self::RANGE - (Self::MIN_VALUE.rem_euclid(Self::RANGE)))).rem_euclid(Self::RANGE)
-                        + Self::MIN_VALUE
-                )
+            /// Creates a bounded integer if the given value is within the range [`MIN`, `MAX`].
+            #[must_use]
+            #vis fn new(n: ::core::primitive::#repr) -> ::core::option::Option<Self> {
+                if Self::in_range(n) {
+                    // SAFETY: We just asserted that the value is in range.
+                    ::core::option::Option::Some(unsafe { Self::new_unchecked(n) })
+                } else {
+                    ::core::option::Option::None
+                }
             }
-        }
 
-        /// Gets the value of the bounded integer as a primitive type.
-        #[must_use]
-        #vis fn get(self) -> ::core::primitive::#repr {
-            #get_body
+            /// Creates a bounded integer by setting the value to `MIN` or `MAX` if it is too low
+            /// or too high respectively.
+            #[must_use]
+            #vis fn new_saturating(n: ::core::primitive::#repr) -> Self {
+                if !(#low_check) {
+                    Self::MIN
+                } else if !(#high_check) {
+                    Self::MAX
+                } else {
+                    // SAFETY: This branch can only happen if n is in range.
+                    unsafe { Self::new_unchecked(n) }
+                }
+            }
+
+            /// Creates a bounded integer by using modulo arithmetic. Values in the range won't be
+            /// changed but values outside will be wrapped around.
+            #[must_use]
+            #vis fn new_wrapping(n: ::core::primitive::#repr) -> Self {
+                unsafe {
+                    Self::new_unchecked(
+                        (n + (Self::RANGE - (Self::MIN_VALUE.rem_euclid(Self::RANGE)))).rem_euclid(Self::RANGE)
+                            + Self::MIN_VALUE
+                    )
+                }
+            }
+
+            /// Gets the value of the bounded integer as a primitive type.
+            #[must_use]
+            #vis fn get(self) -> ::core::primitive::#repr {
+                #get_body
+            }
         }
     });
 }
@@ -402,35 +401,43 @@ fn generate_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
     let vis = &item.vis;
     let repr = &item.repr;
 
-    if item.repr.signed {
-        tokens.extend(quote! {
+    let abs_if_signed = if item.repr.signed {
+        quote! {
             /// Computes the absolute value of `self`, panicking if it is out of range.
             #[must_use]
             #vis fn abs(self) -> Self {
                 Self::new(self.get().abs()).expect("Absolute value out of range")
             }
-        });
-    }
+        }
+    } else {
+        TokenStream::new()
+    };
+
+    let ident = &item.ident;
 
     tokens.extend(quote! {
-        /// Raises self to the power of `exp`, using exponentiation by squaring. Panics if it
-        /// is out of range.
-        #[must_use]
-        #vis fn pow(self, exp: ::core::primitive::u32) -> Self {
-            Self::new(self.get().pow(exp)).expect("Value raised to power out of range")
-        }
-        /// Calculates the quotient of Euclidean division of `self` by `rhs`. Panics if `rhs`
-        /// is 0 or the result is out of range.
-        #[must_use]
-        #vis fn div_euclid(self, rhs: ::core::primitive::#repr) -> Self {
-            Self::new(self.get().div_euclid(rhs)).expect("Attempted to divide out of range")
-        }
-        /// Calculates the least nonnegative remainder of `self (mod rhs)`. Panics if `rhs` is 0
-        /// or the result is out of range.
-        #[must_use]
-        #vis fn rem_euclid(self, rhs: ::core::primitive::#repr) -> Self {
-            Self::new(self.get().rem_euclid(rhs))
-                .expect("Attempted to divide with remainder out of range")
+        impl #ident {
+            #abs_if_signed
+
+            /// Raises self to the power of `exp`, using exponentiation by squaring. Panics if it
+            /// is out of range.
+            #[must_use]
+            #vis fn pow(self, exp: ::core::primitive::u32) -> Self {
+                Self::new(self.get().pow(exp)).expect("Value raised to power out of range")
+            }
+            /// Calculates the quotient of Euclidean division of `self` by `rhs`. Panics if `rhs`
+            /// is 0 or the result is out of range.
+            #[must_use]
+            #vis fn div_euclid(self, rhs: ::core::primitive::#repr) -> Self {
+                Self::new(self.get().div_euclid(rhs)).expect("Attempted to divide out of range")
+            }
+            /// Calculates the least nonnegative remainder of `self (mod rhs)`. Panics if `rhs` is 0
+            /// or the result is out of range.
+            #[must_use]
+            #vis fn rem_euclid(self, rhs: ::core::primitive::#repr) -> Self {
+                Self::new(self.get().rem_euclid(rhs))
+                    .expect("Attempted to divide with remainder out of range")
+            }
         }
     });
 }
@@ -492,6 +499,7 @@ fn generate_ops_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
 }
 
 fn generate_checked_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let mut block_tokens = TokenStream::new();
     let vis = &item.vis;
 
     for op in CHECKED_OPERATORS {
@@ -522,7 +530,7 @@ fn generate_checked_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
         let checked_name = Ident::new(&format!("checked_{}", op.name), Span::call_site());
         let checked_comment = format!("Checked {}.", op.description);
 
-        tokens.extend(quote! {
+        block_tokens.extend(quote! {
             #[doc = #checked_comment]
             #[must_use]
             #vis fn #checked_name(self, #rhs_type) -> ::core::option::Option<Self> {
@@ -537,7 +545,7 @@ fn generate_checked_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
         let saturating_name = Ident::new(&format!("saturating_{}", op.name), Span::call_site());
         let saturating_comment = format!("Saturing {}.", op.description);
 
-        tokens.extend(quote! {
+        block_tokens.extend(quote! {
             #[doc = #saturating_comment]
             #[must_use]
             #vis fn #saturating_name(self, #rhs_type) -> Self {
@@ -545,6 +553,11 @@ fn generate_checked_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
             }
         });
     }
+
+    let ident = &item.ident;
+    tokens.extend(quote! {
+        impl #ident { #block_tokens }
+    });
 }
 
 fn generate_fmt_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
