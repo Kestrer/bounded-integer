@@ -20,3 +20,4 @@ serde = []
 proc-macro2 = "1.0.24"
 syn = { version = "1.0.42", features = ["proc-macro", "parsing", "printing", "full"], default-features = false }
 quote = "1.0.7"
+num-bigint = "0.3.1"

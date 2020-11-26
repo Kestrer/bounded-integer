@@ -1,7 +1,7 @@
-use std::cmp::Ordering;
-
-use proc_macro2::{Ident, Literal, Span, TokenStream};
+use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, quote_spanned, ToTokens};
+
+use num_bigint::BigInt;
 
 use crate::{BoundedInteger, Kind};
 
@@ -27,43 +27,50 @@ fn generate_item(item: &BoundedInteger, tokens: &mut TokenStream) {
         attr.to_tokens(tokens);
     }
     tokens.extend(quote! {
-        #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+        #[derive(
+            ::core::fmt::Debug,
+            ::core::hash::Hash,
+            ::core::clone::Clone,
+            ::core::marker::Copy,
+            ::core::cmp::PartialEq,
+            ::core::cmp::Eq,
+            ::core::cmp::PartialOrd,
+            ::core::cmp::Ord
+        )]
     });
 
-    if let Kind::Enum { .. } = &item.kind {
+    if let Kind::Enum(_) = &item.kind {
         tokens.extend(quote!(#[repr(#repr)]));
     }
 
     item.vis.to_tokens(tokens);
 
     match &item.kind {
-        Kind::Enum { enum_token, .. } => enum_token.to_tokens(tokens),
-        Kind::Struct { struct_token, .. } => struct_token.to_tokens(tokens),
+        Kind::Enum(token) => token.to_tokens(tokens),
+        Kind::Struct(token) => token.to_tokens(tokens),
     }
 
     item.ident.to_tokens(tokens);
 
     match &item.kind {
-        Kind::Struct { .. } => {
+        Kind::Struct(_) => {
             tokens.extend(quote_spanned!(item.brace_token.span=> (::core::primitive::#repr);));
         }
-        Kind::Enum {
-            range, semi_token, ..
-        } => {
+        Kind::Enum(_) => {
             let mut inner_tokens = TokenStream::new();
 
-            let mut variants = range.clone().map(enum_variant);
+            let first_variant = enum_variant(item.range.start());
+            let start_literal = item.repr.number_literal(item.range.start());
+            inner_tokens.extend(quote!(#first_variant = #start_literal));
 
-            if let Some(first_variant) = variants.next() {
-                let start = Literal::isize_unsuffixed(*range.start());
-                inner_tokens.extend(quote!(#first_variant = #start));
-            }
-            for variant in variants {
-                inner_tokens.extend(quote!(, #variant));
+            let mut variant = item.range.start() + 1;
+            while variant <= *item.range.end() {
+                let name = enum_variant(&variant);
+                inner_tokens.extend(quote!(, #name));
+                variant += 1;
             }
 
             tokens.extend(quote_spanned!(item.brace_token.span=> { #inner_tokens }));
-            semi_token.to_tokens(tokens);
         }
     }
 }
@@ -71,29 +78,20 @@ fn generate_item(item: &BoundedInteger, tokens: &mut TokenStream) {
 fn generate_consts(item: &BoundedInteger, tokens: &mut TokenStream) {
     let repr = &item.repr;
 
-    let (min_value, min, max_value, max);
-    match &item.kind {
-        Kind::Struct { range, .. } => {
-            min_value = range.0.as_ref().map_or_else(
-                || quote!(::core::primitive::#repr::MIN),
-                ToTokens::into_token_stream,
+    let min_value = repr.number_literal(item.range.start()).into_token_stream();
+    let max_value = repr.number_literal(item.range.end()).into_token_stream();
+
+    let (min, max) = match &item.kind {
+        Kind::Struct(_) => (quote!(Self(Self::MIN_VALUE)), quote!(Self(Self::MAX_VALUE))),
+        Kind::Enum(_) => {
+            let (min, max) = (
+                enum_variant(item.range.start()),
+                enum_variant(item.range.end()),
             );
-            min = quote!(Self(Self::MIN_VALUE));
-            max_value = range.1.as_ref().map_or_else(
-                || quote!(::core::primitive::#repr::MAX),
-                ToTokens::into_token_stream,
-            );
-            max = quote!(Self(Self::MAX_VALUE));
+
+            (quote!(Self::#min), quote!(Self::#max))
         }
-        Kind::Enum { range, .. } => {
-            min_value = Literal::isize_unsuffixed(*range.start()).into_token_stream();
-            max_value = Literal::isize_unsuffixed(*range.end()).into_token_stream();
-            let min_variant = enum_variant(*range.start());
-            let max_variant = enum_variant(*range.end());
-            min = quote!(Self::#min_variant);
-            max = quote!(Self::#max_variant);
-        }
-    }
+    };
 
     let ident = &item.ident;
     let vis = &item.vis;
@@ -119,30 +117,12 @@ fn generate_consts(item: &BoundedInteger, tokens: &mut TokenStream) {
 fn generate_base(item: &BoundedInteger, tokens: &mut TokenStream) {
     let repr = &item.repr;
 
-    let (get_body, new_body, low_bounded, high_bounded) = match &item.kind {
-        Kind::Struct { range, .. } => (
-            quote!(self.0),
-            quote!(Self(n)),
-            range.0.is_some(),
-            range.1.is_some(),
-        ),
-        Kind::Enum { .. } => (
+    let (get_body, new_body) = match &item.kind {
+        Kind::Struct(_) => (quote!(self.0), quote!(Self(n))),
+        Kind::Enum(_) => (
             quote!(self as ::core::primitive::#repr),
             quote!(::core::mem::transmute::<::core::primitive::#repr, Self>(n)),
-            true,
-            true,
         ),
-    };
-
-    let low_check = if low_bounded {
-        quote!(n >= Self::MIN_VALUE)
-    } else {
-        quote!(true)
-    };
-    let high_check = if high_bounded {
-        quote!(n <= Self::MAX_VALUE)
-    } else {
-        quote!(true)
     };
 
     let ident = &item.ident;
@@ -164,7 +144,7 @@ fn generate_base(item: &BoundedInteger, tokens: &mut TokenStream) {
             /// Checks whether the given value is in the range of the bounded integer.
             #[must_use]
             #vis fn in_range(n: ::core::primitive::#repr) -> ::core::primitive::bool {
-                #low_check && #high_check
+                n >= Self::MIN_VALUE && n <= Self::MAX_VALUE
             }
 
             /// Creates a bounded integer if the given value is within the range [`MIN`, `MAX`].
@@ -182,9 +162,9 @@ fn generate_base(item: &BoundedInteger, tokens: &mut TokenStream) {
             /// or too high respectively.
             #[must_use]
             #vis fn new_saturating(n: ::core::primitive::#repr) -> Self {
-                if !(#low_check) {
+                if n < Self::MIN_VALUE {
                     Self::MIN
-                } else if !(#high_check) {
+                } else if n > Self::MAX_VALUE {
                     Self::MAX
                 } else {
                     // SAFETY: This branch can only happen if n is in range.
@@ -394,7 +374,7 @@ fn generate_checked_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
         }
 
         let saturating_name = Ident::new(&format!("saturating_{}", op.name), Span::call_site());
-        let saturating_comment = format!("Saturing {}.", op.description);
+        let saturating_comment = format!("Saturating {}.", op.description);
 
         block_tokens.extend(quote! {
             #[doc = #saturating_comment]
@@ -475,12 +455,12 @@ fn generate_serde(item: &BoundedInteger, tokens: &mut TokenStream) {
     });
 }
 
-fn enum_variant(i: isize) -> Ident {
+fn enum_variant(i: &BigInt) -> Ident {
     Ident::new(
-        &*match i.cmp(&0) {
-            Ordering::Less => format!("N{}", i.abs()),
-            Ordering::Equal => "Z0".to_owned(),
-            Ordering::Greater => format!("P{}", i),
+        &*match i.sign() {
+            num_bigint::Sign::Minus => format!("N{}", i.magnitude()),
+            num_bigint::Sign::NoSign => "Z".to_owned(),
+            num_bigint::Sign::Plus => format!("P{}", i),
         },
         Span::call_site(),
     )
@@ -639,13 +619,31 @@ mod tests {
         input: TokenStream,
         expected: TokenStream,
     ) {
+        let item = match parse2::<BoundedInteger>(input.clone()) {
+            Ok(item) => item,
+            Err(e) => panic!("Failed to parse '{}': {}", input.to_string(), e),
+        };
         let mut result = TokenStream::new();
-        f(&parse2::<BoundedInteger>(input).unwrap(), &mut result);
+        f(&item, &mut result);
         assert_eq!(result.to_string(), expected.to_string());
+        drop((input, expected));
     }
 
     #[test]
     fn test_tokens() {
+        let derives = quote! {
+            #[derive(
+                ::core::fmt::Debug,
+                ::core::hash::Hash,
+                ::core::clone::Clone,
+                ::core::marker::Copy,
+                ::core::cmp::PartialEq,
+                ::core::cmp::Eq,
+                ::core::cmp::PartialOrd,
+                ::core::cmp::Ord
+            )]
+        };
+
         assert_result(
             generate_item,
             quote! {
@@ -653,10 +651,10 @@ mod tests {
                 pub(crate) enum Nibble { -8..6+2 }
             },
             quote! {
-                #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+                #derives
                 #[repr(isize)]
                 pub(crate) enum Nibble {
-                    N8 = -8, N7, N6, N5, N4, N3, N2, N1, Z0, P1, P2, P3, P4, P5, P6, P7
+                    N8 = -8isize, N7, N6, N5, N4, N3, N2, N1, Z, P1, P2, P3, P4, P5, P6, P7
                 }
             },
         );
@@ -665,14 +663,14 @@ mod tests {
             generate_item,
             quote! {
                 #[repr(u16)]
-                enum Nibble { 3..=7 };
+                enum Nibble { 3..=7 }
             },
             quote! {
-                #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+                #derives
                 #[repr(u16)]
                 enum Nibble {
-                    P3 = 3, P4, P5, P6, P7
-                };
+                    P3 = 3u16, P4, P5, P6, P7
+                }
             },
         );
 
@@ -683,8 +681,8 @@ mod tests {
                 pub struct S { -3..2 }
             },
             quote! {
-                #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-                pub struct S(i8);
+                #derives
+                pub struct S(::core::primitive::i8);
             },
         );
     }

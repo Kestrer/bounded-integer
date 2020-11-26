@@ -7,10 +7,8 @@ bounded_integer! {
     ///
     /// This was generated from:
     /// ```text
-    /// #[repr(i8)]
     /// pub struct BoundedStruct { -8..8 }
     /// ```
-    #[repr(i8)]
     #[bounded_integer = crate]
     pub struct BoundedStruct { -8..8 }
 }
@@ -20,10 +18,8 @@ bounded_integer! {
     ///
     /// This was generated from:
     /// ```text
-    /// #[repr(i8)]
     /// pub enum BoundedEnum { -8..8 }
     /// ```
-    #[repr(i8)]
     #[bounded_integer = crate]
     pub enum BoundedEnum { -8..8 }
 }

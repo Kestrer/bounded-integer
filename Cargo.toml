@@ -20,3 +20,6 @@ serde = ["serde_crate", "bounded-integer-macro/serde"]
 
 [package.metadata.docs.rs]
 features = ["examples"]
+
+[workspace]
+members = ["macro"]
