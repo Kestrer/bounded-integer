@@ -13,8 +13,8 @@ edition = "2018"
 proc-macro = true
 
 [features]
-step_trait = []
 serde = []
+step_trait = []
 
 [dependencies]
 proc-macro2 = "1.0.24"

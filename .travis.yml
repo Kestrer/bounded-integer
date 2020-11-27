@@ -1,8 +1,14 @@
 language: rust
+cache: cargo
 rust:
-  - stable
-  - beta
-  - nightly
+    - stable
+    - beta
+jobs:
+    include:
+        - name: "Nightly: step trait"
+          rust: nightly
+          script:
+              - cargo test --all --features examples,serde,step_trait
+
 script:
-  - cargo build
-  - cargo test --all-features
+    - cargo test --all --features examples,serde

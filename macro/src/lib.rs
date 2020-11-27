@@ -26,15 +26,9 @@ mod generate;
 
 /// Generate a bounded integer type.
 ///
-/// It takes in single struct or enum, with the content being any range expression, which can be
-/// inclusive or not. The attributes and visibility (e.g. `pub`) of the type are forwarded directly
-/// to the output type. It also implements:
-/// * `Debug`, `Display`, `Binary`, `LowerExp`, `LowerHex`, `Octal`, `UpperExp` and `UpperHex`
-/// * `Hash`
-/// * `Clone` and `Copy`
-/// * `PartialEq` and `Eq`
-/// * `PartialOrd` and `Ord`
-/// * If the `serde` feature is enabled, `Serialize` and `Deserialize`
+/// It takes in single struct or enum, with the content being a bounded range expression, whose
+/// upper bound can be inclusive (`x..=y`) or exclusive (`x..y`). The attributes and visibility
+/// (e.g. `pub`) of the type are forwarded directly to the output type.
 ///
 /// # Examples
 ///
@@ -110,6 +104,7 @@ mod generate;
 ///     #[bounded_integer = path::to::bounded_integer]
 ///     pub struct S { 5..7 }
 /// }
+/// # }
 /// ```
 ///
 /// # Limitations

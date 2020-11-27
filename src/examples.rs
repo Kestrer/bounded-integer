@@ -98,13 +98,36 @@ mod tests {
         };
     }
 
+    macro_rules! test_iter {
+        ($fn:ident, $bounded:ident) => {
+            #[test]
+            fn $fn() {
+                fn b(&n: &i8) -> $bounded {
+                    $bounded::new(n).unwrap()
+                }
+
+                assert_eq!([3, 2, 1].iter().map(b).sum::<$bounded>().get(), 6);
+                assert_eq!([-8, 3, 7, 5, -2].iter().map(b).sum::<$bounded>().get(), 5);
+                assert_eq!([7, 6, 4].iter().map(b).sum::<i8>(), 17);
+                assert_eq!([-8, 3, 7, 5, -2].iter().map(b).sum::<i8>(), 5);
+
+                assert_eq!([1, 3, 2, 1].iter().map(b).product::<$bounded>().get(), 6);
+                assert_eq!([1, 3, 2, 1, 0].iter().map(b).product::<$bounded>().get(), 0);
+                assert_eq!([-2, -3, -1].iter().map(b).product::<$bounded>().get(), -6);
+                assert_eq!([3, 3].iter().map(b).product::<i8>(), 9);
+            }
+        };
+    }
+
     test_range!(test_struct_range, BoundedStruct);
     test_saturating!(test_struct_saturating, BoundedStruct);
     test_wrapping!(test_struct_wrapping, BoundedStruct);
     test_arithmetic!(test_struct_arithmetic, BoundedStruct);
+    test_iter!(test_struct_iter, BoundedStruct);
 
     test_range!(test_enum_range, BoundedEnum);
     test_saturating!(test_enum_saturating, BoundedEnum);
     test_wrapping!(test_enum_wrapping, BoundedEnum);
     test_arithmetic!(test_enum_arithmetic, BoundedEnum);
+    test_iter!(test_enum_iter, BoundedEnum);
 }

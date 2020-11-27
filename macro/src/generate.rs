@@ -15,6 +15,7 @@ pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
 
     generate_cmp_traits(item, tokens);
     generate_ops_traits(item, tokens);
+    generate_iter_traits(item, tokens);
     generate_fmt_traits(item, tokens);
     #[cfg(feature = "serde")]
     generate_serde(item, tokens);
@@ -96,19 +97,40 @@ fn generate_consts(item: &BoundedInteger, tokens: &mut TokenStream) {
     let ident = &item.ident;
     let vis = &item.vis;
 
+    let min_value_doc = format!(
+        "The smallest value that this bounded integer can contain; {}.",
+        item.range.start()
+    );
+    let max_value_doc = format!(
+        "The largest value that this bounded integer can contain; {}.",
+        item.range.end()
+    );
+    let min_doc = format!(
+        "The smallest value of the bounded integer; {}.",
+        item.range.start()
+    );
+    let max_doc = format!(
+        "The largest value of the bounded integer; {}.",
+        item.range.end()
+    );
+    let range_doc = format!(
+        "The number of values the bounded integer contains; {}.",
+        item.range.end() - item.range.start() + 1
+    );
+
     tokens.extend(quote! {
         impl #ident {
-            /// The smallest value that this bounded integer can contain.
+            #[doc = #min_value_doc]
             #vis const MIN_VALUE: ::core::primitive::#repr = #min_value;
-            /// The largest value that this bounded integer can contain.
+            #[doc = #max_value_doc]
             #vis const MAX_VALUE: ::core::primitive::#repr = #max_value;
 
-            /// The smallest value of the bounded integer.
+            #[doc = #min_doc]
             #vis const MIN: Self = #min;
-            /// The largest value of the bounded integer.
+            #[doc = #max_doc]
             #vis const MAX: Self = #max;
 
-            /// The number of values the bounded integer can contain.
+            #[doc = #range_doc]
             #vis const RANGE: ::core::primitive::#repr = Self::MAX_VALUE - Self::MIN_VALUE + 1;
         }
     });
@@ -389,6 +411,86 @@ fn generate_checked_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
     tokens.extend(quote! {
         impl #ident { #block_tokens }
     });
+}
+
+fn generate_iter_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let ident = &item.ident;
+    let repr = &item.repr;
+
+    if item.range.contains(&BigInt::from(0)) {
+        tokens.extend(quote! {
+            impl ::core::iter::Sum for #ident {
+                fn sum<I: ::core::iter::Iterator<Item = Self>>(iter: I) -> Self {
+                    ::core::iter::Iterator::fold(
+                        iter,
+                        unsafe { Self::new_unchecked(0) },
+                        ::core::ops::Add::add,
+                    )
+                }
+            }
+            impl<'a> ::core::iter::Sum<&'a Self> for #ident {
+                fn sum<I: ::core::iter::Iterator<Item = &'a Self>>(iter: I) -> Self {
+                    ::core::iter::Iterator::sum(::core::iter::Iterator::copied(iter))
+                }
+            }
+
+            impl ::core::iter::Sum<#ident> for ::core::primitive::#repr {
+                fn sum<I: ::core::iter::Iterator<Item = #ident>>(iter: I) -> Self {
+                    ::core::iter::Iterator::sum(::core::iter::Iterator::map(iter, #ident::get))
+                }
+            }
+            impl<'a> ::core::iter::Sum<&'a #ident> for ::core::primitive::#repr {
+                fn sum<I: ::core::iter::Iterator<Item = &'a #ident>>(iter: I) -> Self {
+                    ::core::iter::Iterator::sum(::core::iter::Iterator::copied(iter))
+                }
+            }
+        });
+    }
+    if item.range.contains(&BigInt::from(1)) {
+        tokens.extend(quote! {
+            impl ::core::iter::Product for #ident {
+                fn product<I: ::core::iter::Iterator<Item = Self>>(iter: I) -> Self {
+                    ::core::iter::Iterator::fold(
+                        iter,
+                        unsafe { Self::new_unchecked(1) },
+                        ::core::ops::Mul::mul,
+                    )
+                }
+            }
+            impl<'a> ::core::iter::Product<&'a Self> for #ident {
+                fn product<I: ::core::iter::Iterator<Item = &'a Self>>(iter: I) -> Self {
+                    ::core::iter::Iterator::product(::core::iter::Iterator::copied(iter))
+                }
+            }
+
+            impl ::core::iter::Product<#ident> for ::core::primitive::#repr {
+                fn product<I: ::core::iter::Iterator<Item = #ident>>(iter: I) -> Self {
+                    ::core::iter::Iterator::product(::core::iter::Iterator::map(iter, #ident::get))
+                }
+            }
+            impl<'a> ::core::iter::Product<&'a #ident> for ::core::primitive::#repr {
+                fn product<I: ::core::iter::Iterator<Item = &'a #ident>>(iter: I) -> Self {
+                    ::core::iter::Iterator::product(::core::iter::Iterator::copied(iter))
+                }
+            }
+        });
+    }
+    #[cfg(feature = "step_trait")]
+    {
+        tokens.extend(quote! {
+            unsafe impl ::core::iter::Step for #ident {
+                fn steps_between(start: &Self, end: &Self) -> ::core::option::Option<::core::primitive::usize> {
+                    ::core::iter::Step::steps_between(&start.get(), &end.get())
+                }
+                fn forward_checked(start: Self, count: ::core::primitive::usize) -> ::core::option::Option<Self> {
+                    ::core::iter::Step::forward_checked(start.get(), count).and_then(Self::new)
+                }
+                fn backward_checked(start: Self, count: ::core::primitive::usize) -> ::core::option::Option<Self> {
+                    ::core::iter::Step::backward_checked(start.get(), count).and_then(Self::new)
+                }
+            }
+        });
+    }
 }
 
 fn generate_fmt_traits(item: &BoundedInteger, tokens: &mut TokenStream) {

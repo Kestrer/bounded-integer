@@ -17,6 +17,7 @@ serde_crate = { package = "serde", version = "1.0.116", default-features = false
 [features]
 examples = []
 serde = ["serde_crate", "bounded-integer-macro/serde"]
+step_trait = ["bounded-integer-macro/step_trait"]
 
 [package.metadata.docs.rs]
 features = ["examples"]

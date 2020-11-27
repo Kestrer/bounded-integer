@@ -1,6 +1,7 @@
 #![no_implicit_prelude]
 #![no_std]
 #![allow(non_camel_case_types, dead_code, unused_macros)]
+#![cfg_attr(feature = "step_trait", feature(step_trait, step_trait_ext))]
 
 struct u8 {}
 struct u16 {}
