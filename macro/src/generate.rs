@@ -13,6 +13,8 @@ pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
     generate_operators(item, tokens);
     generate_checked_operators(item, tokens);
 
+    // TODO: Implement FromStr, TryFrom and TryInto. This will require adding error types to the
+    // main crate.
     generate_cmp_traits(item, tokens);
     generate_ops_traits(item, tokens);
     generate_iter_traits(item, tokens);
