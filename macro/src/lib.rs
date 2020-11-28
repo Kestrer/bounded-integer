@@ -15,7 +15,7 @@ use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::{quote, ToTokens, TokenStreamExt as _};
 use syn::parse::{self, Parse, ParseStream};
 use syn::{braced, parse_macro_input, token::Brace, Token};
-use syn::{Attribute, Error, Expr, Path, Visibility};
+use syn::{Attribute, Error, Expr, Path, PathArguments, PathSegment, Visibility};
 use syn::{BinOp, ExprBinary, ExprRange, ExprUnary, RangeLimits, UnOp};
 use syn::{ExprGroup, ExprParen};
 use syn::{ExprLit, Lit};
@@ -117,11 +117,30 @@ mod generate;
 ///     - Bitwise not (`!x`), XOR (`x^y`), AND (`x&y`) and OR (`x|y`).
 #[proc_macro]
 pub fn bounded_integer(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let item = parse_macro_input!(input as BoundedInteger);
+    let mut item = parse_macro_input!(input as BoundedInteger);
 
+    // Hide in a module to prevent access to private parts.
+    let module_name = Ident::new(
+        &format!("__bounded_integer_private_{}", item.ident),
+        item.ident.span(),
+    );
+    let ident = &item.ident;
+    let original_visibility = item.vis;
+
+    let import = quote!(#original_visibility use #module_name::#ident);
+
+    item.vis = raise_one_level(original_visibility);
     let mut result = TokenStream::new();
     generate::generate(&item, &mut result);
-    result.into()
+
+    quote!(
+        #[allow(non_snake_case)]
+        mod #module_name {
+            #result
+        }
+        #import;
+    )
+    .into()
 }
 
 macro_rules! signed {
@@ -501,4 +520,74 @@ fn eval_expr(expr: &Expr) -> syn::Result<BigInt> {
         }
         _ => return Err(Error::new_spanned(expr, "expected simple expression")),
     })
+}
+
+/// Raise a visibility one level.
+///
+/// ```text
+/// no visibility -> pub(super)
+/// pub(self) -> pub(super)
+/// pub(in self) -> pub(in super)
+/// pub(in self::some::path) -> pub(in super::some::path)
+/// pub(super) -> pub(in super::super)
+/// pub(in super) -> pub(in super::super)
+/// pub(in super::some::path) -> pub(in super::super::some::path)
+/// ```
+fn raise_one_level(vis: Visibility) -> Visibility {
+    match vis {
+        Visibility::Inherited => syn::parse2(quote!(pub(super))).unwrap(),
+        Visibility::Restricted(mut restricted)
+            if restricted.path.segments.first().unwrap().ident == "self" =>
+        {
+            let first = &mut restricted.path.segments.first_mut().unwrap().ident;
+            *first = Ident::new("super", first.span());
+            Visibility::Restricted(restricted)
+        }
+        Visibility::Restricted(mut restricted)
+            if restricted.path.segments.first().unwrap().ident == "super" =>
+        {
+            restricted
+                .in_token
+                .get_or_insert_with(<Token![in]>::default);
+            let first = PathSegment {
+                ident: restricted.path.segments.first().unwrap().ident.clone(),
+                arguments: PathArguments::None,
+            };
+            restricted.path.segments.insert(0, first);
+            Visibility::Restricted(restricted)
+        }
+        absolute_visibility => absolute_visibility,
+    }
+}
+
+#[test]
+fn test_raise_one_level() {
+    fn assert_output(input: TokenStream, output: TokenStream) {
+        let tokens = raise_one_level(syn::parse2(input).unwrap()).into_token_stream();
+        assert_eq!(tokens.to_string(), output.to_string());
+        drop(output);
+    }
+
+    assert_output(TokenStream::new(), quote!(pub(super)));
+    assert_output(quote!(pub(self)), quote!(pub(super)));
+    assert_output(quote!(pub(in self)), quote!(pub(in super)));
+    assert_output(
+        quote!(pub(in self::some::path)),
+        quote!(pub(in super::some::path)),
+    );
+    assert_output(quote!(pub(super)), quote!(pub(in super::super)));
+    assert_output(quote!(pub(in super)), quote!(pub(in super::super)));
+    assert_output(
+        quote!(pub(in super::some::path)),
+        quote!(pub(in super::super::some::path)),
+    );
+
+    assert_output(quote!(pub), quote!(pub));
+    assert_output(quote!(pub(crate)), quote!(pub(crate)));
+    assert_output(quote!(crate), quote!(crate));
+    assert_output(quote!(pub(in crate)), quote!(pub(in crate)));
+    assert_output(
+        quote!(pub(in crate::some::path)),
+        quote!(pub(in crate::some::path)),
+    );
 }
