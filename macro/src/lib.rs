@@ -337,6 +337,7 @@ impl Repr {
             (_, ReprSize::Pointer) => return None,
         })
     }
+
     fn maximum(&self) -> Option<BigInt> {
         Some(match (self.signed, self.size) {
             (false, ReprSize::Fixed(ReprSizeFixed::Fixed8)) => BigInt::from(u8::MAX),
@@ -377,6 +378,24 @@ impl Repr {
             signed Fixed(Fixed64) => i64_suffixed,
             signed Fixed(Fixed128) => i128_suffixed,
             signed Pointer => isize_suffixed,
+        }
+    }
+
+    fn larger_reprs(&self) -> impl Iterator<Item = Self> {
+        if self.signed {
+            Either::A(self.size.larger_reprs().map(|size| Self::new(true, size)))
+        } else {
+            Either::B(
+                self.size
+                    .larger_reprs()
+                    .map(|size| Self::new(false, size))
+                    .chain(
+                        self.size
+                            .larger_reprs()
+                            .skip(1)
+                            .map(|size| Self::new(true, size)),
+                    ),
+            )
         }
     }
 }
@@ -430,6 +449,15 @@ enum ReprSize {
     Pointer,
 }
 
+impl ReprSize {
+    fn larger_reprs(self) -> impl Iterator<Item = Self> {
+        match self {
+            Self::Fixed(fixed) => Either::A(fixed.larger_reprs().map(Self::Fixed)),
+            Self::Pointer => Either::B(std::iter::once(Self::Pointer)),
+        }
+    }
+}
+
 impl Display for ReprSize {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
@@ -458,6 +486,24 @@ impl ReprSizeFixed {
             65..=128 => Self::Fixed128,
             129..=u64::MAX => return None,
         })
+    }
+
+    fn larger_reprs(self) -> impl Iterator<Item = Self> {
+        const REPRS: [ReprSizeFixed; 5] = [
+            ReprSizeFixed::Fixed8,
+            ReprSizeFixed::Fixed16,
+            ReprSizeFixed::Fixed32,
+            ReprSizeFixed::Fixed64,
+            ReprSizeFixed::Fixed128,
+        ];
+        let index = match self {
+            Self::Fixed8 => 0,
+            Self::Fixed16 => 1,
+            Self::Fixed32 => 2,
+            Self::Fixed64 => 3,
+            Self::Fixed128 => 4,
+        };
+        REPRS[index..].iter().copied()
     }
 }
 
@@ -590,4 +636,18 @@ fn test_raise_one_level() {
         quote!(pub(in crate::some::path)),
         quote!(pub(in crate::some::path)),
     );
+}
+
+enum Either<A, B> {
+    A(A),
+    B(B),
+}
+impl<T, A: Iterator<Item = T>, B: Iterator<Item = T>> Iterator for Either<A, B> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::A(a) => a.next(),
+            Self::B(b) => b.next(),
+        }
+    }
 }

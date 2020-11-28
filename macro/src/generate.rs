@@ -17,6 +17,7 @@ pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
     generate_ops_traits(item, tokens);
     generate_iter_traits(item, tokens);
     generate_fmt_traits(item, tokens);
+    generate_to_primitive_traits(item, tokens);
     #[cfg(feature = "serde")]
     generate_serde(item, tokens);
 }
@@ -522,6 +523,20 @@ fn generate_fmt_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
             impl ::core::fmt::#fmt_trait for #ident {
                 fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
                     <::core::primitive::#repr as ::core::fmt::#fmt_trait>::fmt(&self.get(), f)
+                }
+            }
+        });
+    }
+}
+
+fn generate_to_primitive_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let ident = &item.ident;
+
+    for repr in item.repr.larger_reprs() {
+        tokens.extend(quote! {
+            impl ::core::convert::From<#ident> for ::core::primitive::#repr {
+                fn from(bounded: #ident) -> Self {
+                    ::core::convert::From::from(bounded.get())
                 }
             }
         });
