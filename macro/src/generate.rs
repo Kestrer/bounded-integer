@@ -307,6 +307,7 @@ fn generate_ops_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
         let description = op.description;
 
         if op.bin {
+            // bounded + repr
             binop_trait_variations(
                 op.trait_name,
                 op.method,
@@ -314,13 +315,28 @@ fn generate_ops_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
                 &full_repr,
                 |trait_name, method| {
                     quote! {
-                        Self::new(<::core::primitive::#repr as ::core::ops::#trait_name>::#method(self.get(), rhs))
+                        Self::new(<#full_repr as ::core::ops::#trait_name>::#method(self.get(), rhs))
                             .expect(::core::concat!("Attempted to ", #description, " out of range"))
                     }
                 },
                 tokens,
             );
 
+            // repr + bounded
+            binop_trait_variations(
+                op.trait_name,
+                op.method,
+                &full_repr,
+                &item.ident,
+                |trait_name, method| {
+                    quote! {
+                        <Self as ::core::ops::#trait_name<#full_repr>>::#method(self, rhs.get())
+                    }
+                },
+                tokens,
+            );
+
+            // bounded + bounded
             binop_trait_variations(
                 op.trait_name,
                 op.method,
@@ -328,7 +344,7 @@ fn generate_ops_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
                 &item.ident,
                 |trait_name, method| {
                     quote! {
-                        <Self as ::core::ops::#trait_name<::core::primitive::#repr>>::#method(self, rhs.get())
+                        <Self as ::core::ops::#trait_name<#full_repr>>::#method(self, rhs.get())
                     }
                 },
                 tokens,
@@ -342,7 +358,7 @@ fn generate_ops_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
                 &method,
                 &item.ident,
                 &quote! {
-                    Self::new(<::core::primitive::#repr as ::core::ops::#trait_name>::#method(self.get()))
+                    Self::new(<#full_repr as ::core::ops::#trait_name>::#method(self.get()))
                         .expect(::core::concat!("Attempted to ", #description, " out of range"))
                 },
                 tokens,

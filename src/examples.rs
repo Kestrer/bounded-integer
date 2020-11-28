@@ -94,6 +94,7 @@ mod tests {
                 assert_eq!(($bounded::new(-2).unwrap() * 3).get(), -6);
                 assert_eq!(($bounded::new(7).unwrap() / 3).get(), 2);
                 assert_eq!(($bounded::new(7).unwrap() % 3).get(), 1);
+                assert_eq!(-2 + $bounded::new(-8).unwrap(), -10);
             }
         };
     }
