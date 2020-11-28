@@ -45,6 +45,7 @@ mod generate;
 /// The generated item should look like this (i8 is chosen as it is the smallest repr):
 /// ```
 /// #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+/// #[repr(transparent)]
 /// pub struct S(i8);
 /// ```
 /// And the methods will ensure that `-3 <= S.0 < 2`.
@@ -87,6 +88,7 @@ mod generate;
 /// The generated item should look like this:
 /// ```
 /// #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+/// #[repr(transparent)]
 /// pub struct S(u16);
 /// ```
 ///
