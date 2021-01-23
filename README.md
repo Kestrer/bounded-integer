@@ -6,9 +6,9 @@ Note: This is now the primary repo for bounded-integer.
 [![Build status][travis-badge]][travis]
 
 [crate]: https://crates.io/crates/bounded-integer
-[travis]: https://travis-ci.org/Koxiaet/bounded-integer
+[travis]: https://travis-ci.org/Kestrer/bounded-integer
 [crate-badge]: https://img.shields.io/crates/v/bounded-integer.svg
-[travis-badge]: https://img.shields.io/travis/Koxiaet/bounded-integer/master.svg
+[travis-badge]: https://img.shields.io/travis/Kestrer/bounded-integer/master.svg
 
 Bounded integers for Rust.
 

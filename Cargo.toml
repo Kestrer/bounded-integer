@@ -1,11 +1,11 @@
 [package]
 name = "bounded-integer"
 version = "0.3.0"
-authors = ["Koxiaet <38139193+Koxiaet@users.noreply.github.com>"]
+authors = ["Kestrer <kestrer.dev@gmail.com>"]
 description = "Bounded integers"
 keywords = ["bounded", "integer", "macro", "refinement"]
 license = "ISC"
-repository = "https://github.com/Koxiaet/bounded-integer"
+repository = "https://github.com/Kestrer/bounded-integer"
 readme = "README.md"
 edition = "2018"
 
