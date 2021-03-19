@@ -1,5 +1,6 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, quote_spanned, ToTokens};
+use syn::Token;
 
 use num_bigint::BigInt;
 
@@ -9,7 +10,8 @@ pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
     generate_item(item, tokens);
 
     generate_consts(item, tokens);
-    generate_base(item, tokens);
+    generate_constructors(item, tokens);
+    generate_getters(item, tokens);
     generate_operators(item, tokens);
     generate_checked_operators(item, tokens);
 
@@ -140,11 +142,72 @@ fn generate_consts(item: &BoundedInteger, tokens: &mut TokenStream) {
     });
 }
 
-fn generate_base(item: &BoundedInteger, tokens: &mut TokenStream) {
+#[allow(clippy::too_many_lines)]
+fn generate_constructors(item: &BoundedInteger, tokens: &mut TokenStream) {
     let repr = &item.repr;
 
     let ident = &item.ident;
     let vis = &item.vis;
+
+    let (new_unchecked_const, new_unchecked_body) = match item.kind {
+        Kind::Struct(_) => (Some(Token![const](Span::call_site())), quote!(Self(n))),
+        Kind::Enum(_) => (
+            None,
+            quote!(::core::mem::transmute::<::core::primitive::#repr, Self>(n)),
+        ),
+    };
+
+    let (new_body, new_saturating_body) = match item.kind {
+        Kind::Struct(_) => (
+            quote! {
+                if Self::in_range(n) {
+                    ::core::option::Option::Some(Self(n))
+                } else {
+                    ::core::option::Option::None
+                }
+            },
+            quote! {
+                if n < Self::MIN_VALUE {
+                    Self::MIN
+                } else if n > Self::MAX_VALUE {
+                    Self::MAX
+                } else {
+                    Self(n)
+                }
+            },
+        ),
+        Kind::Enum(_) => {
+            let mut new_arms = TokenStream::new();
+            let mut new_saturating_arms = quote! {
+                ::core::primitive::#repr::MIN..=Self::MIN_VALUE => Self::MIN,
+                Self::MAX_VALUE..=::core::primitive::#repr::MAX => Self::MAX,
+            };
+
+            let mut variant = item.range.start().clone();
+            while variant <= *item.range.end() {
+                let variant_value = item.repr.number_literal(&variant);
+                let variant_name = enum_variant(&variant);
+
+                new_arms.extend(quote! {
+                    #variant_value => ::core::option::Option::Some(Self::#variant_name),
+                });
+                new_saturating_arms.extend(quote! {
+                    #variant_value => Self::#variant_name,
+                });
+
+                variant += 1;
+            }
+
+            new_arms.extend(quote! {
+                _ => ::core::option::Option::None,
+            });
+
+            (
+                quote! { match n { #new_arms } },
+                quote! { match n { #new_saturating_arms } },
+            )
+        }
+    };
 
     tokens.extend(quote! {
         impl #ident {
@@ -153,10 +216,10 @@ fn generate_base(item: &BoundedInteger, tokens: &mut TokenStream) {
             /// # Safety
             ///
             /// The value must not be outside the valid range of values; it must not be less than
-            /// `MIN` or greater than `MAX`.
+            /// [`MIN`](Self::MIN) or greater than [`MAX`](Self::MAX).
             #[must_use]
-            #vis unsafe fn new_unchecked(n: ::core::primitive::#repr) -> Self {
-                ::core::mem::transmute::<::core::primitive::#repr, Self>(n)
+            #vis #new_unchecked_const unsafe fn new_unchecked(n: ::core::primitive::#repr) -> Self {
+                #new_unchecked_body
             }
 
             /// Creates a reference to a bounded integer from a reference to a primitive.
@@ -176,7 +239,7 @@ fn generate_base(item: &BoundedInteger, tokens: &mut TokenStream) {
             /// # Safety
             ///
             /// The value must not be outside the valid range of values; it must not be less than
-            /// `MIN` or greater than `MAX`.
+            /// [`MIN`](Self::MIN) or greater than [`MAX`](Self::MAX).
             #[must_use]
             #vis unsafe fn new_mut_unchecked(n: &mut ::core::primitive::#repr) -> &mut Self {
                 &mut *(n as *mut ::core::primitive::#repr as *mut Self)
@@ -184,19 +247,15 @@ fn generate_base(item: &BoundedInteger, tokens: &mut TokenStream) {
 
             /// Checks whether the given value is in the range of the bounded integer.
             #[must_use]
-            #vis fn in_range(n: ::core::primitive::#repr) -> ::core::primitive::bool {
-                (Self::MIN_VALUE..=Self::MAX_VALUE).contains(&n)
+            #vis const fn in_range(n: ::core::primitive::#repr) -> ::core::primitive::bool {
+                n >= Self::MIN_VALUE && n <= Self::MAX_VALUE
             }
 
-            /// Creates a bounded integer if the given value is within the range [`MIN`, `MAX`].
+            /// Creates a bounded integer if the given value is within the range
+            /// [[`MIN`](Self::MIN), [`MAX`](Self::MAX)].
             #[must_use]
-            #vis fn new(n: ::core::primitive::#repr) -> ::core::option::Option<Self> {
-                if Self::in_range(n) {
-                    // SAFETY: We just asserted that the value is in range.
-                    ::core::option::Option::Some(unsafe { Self::new_unchecked(n) })
-                } else {
-                    ::core::option::Option::None
-                }
+            #vis const fn new(n: ::core::primitive::#repr) -> ::core::option::Option<Self> {
+                #new_body
             }
 
             /// Creates a reference to a bounded integer from a reference to a primitive if the
@@ -212,7 +271,8 @@ fn generate_base(item: &BoundedInteger, tokens: &mut TokenStream) {
             }
 
             /// Creates a mutable reference to a bounded integer from a mutable reference to a
-            /// primitive if the given value is within the range [`MIN`, `MAX`].
+            /// primitive if the given value is within the range
+            /// [[`MIN`](Self::MIN), [`MAX`](Self::MAX)].
             #[must_use]
             #vis fn new_mut(n: &mut ::core::primitive::#repr) -> ::core::option::Option<&mut Self> {
                 if Self::in_range(*n) {
@@ -223,18 +283,11 @@ fn generate_base(item: &BoundedInteger, tokens: &mut TokenStream) {
                 }
             }
 
-            /// Creates a bounded integer by setting the value to `MIN` or `MAX` if it is too low
-            /// or too high respectively.
+            /// Creates a bounded integer by setting the value to [`MIN`](Self::MIN) or
+            /// [`MAX`](Self::MAX) if it is too low or too high respectively.
             #[must_use]
-            #vis fn new_saturating(n: ::core::primitive::#repr) -> Self {
-                if n < Self::MIN_VALUE {
-                    Self::MIN
-                } else if n > Self::MAX_VALUE {
-                    Self::MAX
-                } else {
-                    // SAFETY: This branch can only happen if n is in range.
-                    unsafe { Self::new_unchecked(n) }
-                }
+            #vis const fn new_saturating(n: ::core::primitive::#repr) -> Self {
+                #new_saturating_body
             }
 
             /// Creates a bounded integer by using modulo arithmetic. Values in the range won't be
@@ -248,22 +301,41 @@ fn generate_base(item: &BoundedInteger, tokens: &mut TokenStream) {
                     )
                 }
             }
+        }
+    });
+}
 
+fn generate_getters(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let repr = &item.repr;
+
+    let ident = &item.ident;
+    let vis = &item.vis;
+
+    let get_body = match item.kind {
+        Kind::Struct(_) => quote!(self.0),
+        Kind::Enum(_) => quote!(self as _),
+    };
+
+    let (get_ref_const, get_ref_body) = match item.kind {
+        Kind::Struct(_) => (Some(Token![const](Span::call_site())), quote!(&self.0)),
+        Kind::Enum(_) => (
+            None,
+            quote!(unsafe { &*(self as *const Self as *const ::core::primitive::#repr) }),
+        ),
+    };
+
+    tokens.extend(quote! {
+        impl #ident {
             /// Gets the value of the bounded integer as a primitive type.
             #[must_use]
-            #vis fn get(self) -> ::core::primitive::#repr {
-                unsafe {
-                    // This is possible without unsafe but that's longer to write
-                    ::core::mem::transmute::<Self, ::core::primitive::#repr>(self)
-                }
+            #vis const fn get(self) -> ::core::primitive::#repr {
+                #get_body
             }
 
             /// Gets a reference to the value of the bounded integer.
             #[must_use]
-            #vis fn get_ref(&self) -> &::core::primitive::#repr {
-                unsafe {
-                    &*(self as *const Self as *const ::core::primitive::#repr)
-                }
+            #vis #get_ref_const fn get_ref(&self) -> &::core::primitive::#repr {
+                #get_ref_body
             }
 
             /// Gets a mutable reference to the value of the bounded integer.
