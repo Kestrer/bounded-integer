@@ -185,7 +185,7 @@ fn generate_base(item: &BoundedInteger, tokens: &mut TokenStream) {
             /// Checks whether the given value is in the range of the bounded integer.
             #[must_use]
             #vis fn in_range(n: ::core::primitive::#repr) -> ::core::primitive::bool {
-                n >= Self::MIN_VALUE && n <= Self::MAX_VALUE
+                (Self::MIN_VALUE..=Self::MAX_VALUE).contains(&n)
             }
 
             /// Creates a bounded integer if the given value is within the range [`MIN`, `MAX`].
