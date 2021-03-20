@@ -13,8 +13,9 @@ pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
 
     // TODO: Implement FromStr, TryFrom and TryInto. This will require adding error types to the
     // main crate.
-    generate_cmp_traits(item, tokens);
     generate_ops_traits(item, tokens);
+    generate_cmp_traits(item, tokens);
+    generate_as_ref_borrow(item, tokens);
     generate_iter_traits(item, tokens);
     generate_fmt_traits(item, tokens);
     generate_to_primitive_traits(item, tokens);
@@ -499,41 +500,6 @@ impl CheckedOperator {
     }
 }
 
-fn generate_cmp_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
-    let ident = &item.ident;
-    let repr = &item.repr;
-
-    // These are only impls that can't be derived
-    tokens.extend(quote! {
-        impl ::core::cmp::PartialEq<::core::primitive::#repr> for #ident {
-            fn eq(&self, other: &::core::primitive::#repr) -> bool {
-                self.get() == *other
-            }
-        }
-        impl ::core::cmp::PartialEq<#ident> for ::core::primitive::#repr {
-            fn eq(&self, other: &#ident) -> bool {
-                *self == other.get()
-            }
-        }
-        impl ::core::cmp::PartialOrd<::core::primitive::#repr> for #ident {
-            fn partial_cmp(
-                &self,
-                other: &::core::primitive::#repr
-            ) -> ::core::option::Option<::core::cmp::Ordering> {
-                ::core::cmp::PartialOrd::partial_cmp(&self.get(), other)
-            }
-        }
-        impl ::core::cmp::PartialOrd<#ident> for ::core::primitive::#repr {
-            fn partial_cmp(
-                &self,
-                other: &#ident
-            ) -> ::core::option::Option<::core::cmp::Ordering> {
-                ::core::cmp::PartialOrd::partial_cmp(self, &other.get())
-            }
-        }
-    });
-}
-
 fn generate_ops_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
     let repr = &item.repr;
     let full_repr = quote!(::core::primitive::#repr);
@@ -698,6 +664,59 @@ struct Operator {
     description: &'static str,
     bin: bool,
     on_unsigned: bool,
+}
+
+fn generate_cmp_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let ident = &item.ident;
+    let repr = &item.repr;
+
+    // These are only impls that can't be derived
+    tokens.extend(quote! {
+        impl ::core::cmp::PartialEq<::core::primitive::#repr> for #ident {
+            fn eq(&self, other: &::core::primitive::#repr) -> bool {
+                self.get() == *other
+            }
+        }
+        impl ::core::cmp::PartialEq<#ident> for ::core::primitive::#repr {
+            fn eq(&self, other: &#ident) -> bool {
+                *self == other.get()
+            }
+        }
+        impl ::core::cmp::PartialOrd<::core::primitive::#repr> for #ident {
+            fn partial_cmp(
+                &self,
+                other: &::core::primitive::#repr
+            ) -> ::core::option::Option<::core::cmp::Ordering> {
+                ::core::cmp::PartialOrd::partial_cmp(&self.get(), other)
+            }
+        }
+        impl ::core::cmp::PartialOrd<#ident> for ::core::primitive::#repr {
+            fn partial_cmp(
+                &self,
+                other: &#ident
+            ) -> ::core::option::Option<::core::cmp::Ordering> {
+                ::core::cmp::PartialOrd::partial_cmp(self, &other.get())
+            }
+        }
+    });
+}
+
+fn generate_as_ref_borrow(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let ident = &item.ident;
+    let repr = &item.repr;
+
+    tokens.extend(quote! {
+        impl ::core::convert::AsRef<::core::primitive::#repr> for #ident {
+            fn as_ref(&self) -> &::core::primitive::#repr {
+                self.get_ref()
+            }
+        }
+        impl ::core::borrow::Borrow<::core::primitive::#repr> for #ident {
+            fn borrow(&self) -> &::core::primitive::#repr {
+                self.get_ref()
+            }
+        }
+    });
 }
 
 fn generate_iter_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
