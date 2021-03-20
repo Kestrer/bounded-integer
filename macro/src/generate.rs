@@ -7,6 +7,8 @@ use num_bigint::BigInt;
 use crate::{BoundedInteger, Kind};
 
 pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
+    generate_access_checker(item, tokens);
+
     generate_item(item, tokens);
 
     generate_consts(item, tokens);
@@ -24,6 +26,11 @@ pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
     generate_to_primitive_traits(item, tokens);
     #[cfg(feature = "serde")]
     generate_serde(item, tokens);
+}
+
+fn generate_access_checker(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let crate_path = &item.crate_path;
+    tokens.extend(quote!(const _: () = #crate_path::__private::HAS_ACCESS_TO_CRATE;));
 }
 
 fn generate_item(item: &BoundedInteger, tokens: &mut TokenStream) {
@@ -663,7 +670,8 @@ fn generate_to_primitive_traits(item: &BoundedInteger, tokens: &mut TokenStream)
 fn generate_serde(item: &BoundedInteger, tokens: &mut TokenStream) {
     let ident = &item.ident;
     let repr = &item.repr;
-    let serde = &item.serde;
+    let crate_path = &item.crate_path;
+    let serde = quote!(#crate_path::__private::serde);
 
     tokens.extend(quote! {
         impl #serde::Serialize for #ident {

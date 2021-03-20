@@ -13,7 +13,7 @@ use std::ops::RangeInclusive;
 
 use proc_macro2::{Ident, Literal, Span, TokenStream};
 use quote::{quote, ToTokens, TokenStreamExt as _};
-use syn::parse::{self, Parse, ParseStream};
+use syn::parse::{self, Parse, ParseStream, Parser};
 use syn::{braced, parse_macro_input, token::Brace, Token};
 use syn::{Attribute, Error, Expr, Path, PathArguments, PathSegment, Visibility};
 use syn::{BinOp, ExprBinary, ExprRange, ExprUnary, RangeLimits, UnOp};
@@ -156,8 +156,7 @@ macro_rules! signed {
 
 struct BoundedInteger {
     attrs: Vec<Attribute>,
-    #[cfg(feature = "serde")]
-    serde: TokenStream,
+    crate_path: TokenStream,
     repr: Repr,
     vis: Visibility,
     kind: Kind,
@@ -175,27 +174,18 @@ impl Parse for BoundedInteger {
             .map(|pos| attrs.remove(pos).parse_args::<Repr>())
             .transpose()?;
 
-        let crate_location_pos = attrs
+        let crate_path = attrs
             .iter()
-            .position(|attr| attr.path.is_ident("bounded_integer"));
-        #[cfg_attr(not(feature = "serde"), allow(unused_variables))]
-        let crate_location = crate_location_pos
-            .map(|crate_location_pos| -> parse::Result<_> {
-                struct CrateLocation(Path);
-                impl Parse for CrateLocation {
-                    fn parse(input: ParseStream<'_>) -> parse::Result<Self> {
-                        input.parse::<Token![=]>()?;
-                        Ok(Self(input.parse::<Path>()?))
-                    }
-                }
-
-                let location: CrateLocation = syn::parse2(attrs.remove(crate_location_pos).tokens)?;
-                Ok(location.0.into_token_stream())
+            .position(|attr| attr.path.is_ident("bounded_integer"))
+            .map(|pos| {
+                (|input: ParseStream<'_>| {
+                    input.parse::<Token![=]>()?;
+                    input.parse::<Path>()
+                })
+                .parse2(attrs.remove(pos).tokens)
             })
             .transpose()?
-            .unwrap_or_else(|| quote!(::bounded_integer));
-        #[cfg(feature = "serde")]
-        let serde = quote!(#crate_location::__serde);
+            .map_or_else(|| quote!(::bounded_integer), Path::into_token_stream);
 
         let vis: Visibility = input.parse()?;
 
@@ -262,8 +252,7 @@ impl Parse for BoundedInteger {
 
         Ok(Self {
             attrs,
-            #[cfg(feature = "serde")]
-            serde,
+            crate_path,
             repr,
             vis,
             kind,

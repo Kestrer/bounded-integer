@@ -19,9 +19,13 @@
     feature(step_trait, step_trait_ext)
 )]
 
-#[cfg(feature = "serde")]
 #[doc(hidden)]
-pub use serde_crate as __serde;
+pub mod __private {
+    #[cfg(feature = "serde")]
+    pub use serde_crate as serde;
+
+    pub const HAS_ACCESS_TO_CRATE: () = ();
+}
 
 #[cfg(feature = "examples")]
 pub mod examples;
