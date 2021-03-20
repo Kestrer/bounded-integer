@@ -411,13 +411,7 @@ fn generate_checked_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
     let vis = &item.vis;
 
     for op in CHECKED_OPERATORS {
-        let variants = if item.repr.signed {
-            op.signed_variants
-        } else {
-            op.unsigned_variants
-        };
-
-        if variants == NoOps {
+        if !item.repr.signed && op.variants == OpVariants::Signed {
             continue;
         }
 
@@ -447,7 +441,9 @@ fn generate_checked_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
             }
         });
 
-        if variants != All {
+        if op.variants == OpVariants::NoSaturating
+            || !item.repr.signed && op.variants == OpVariants::SignedSaturating
+        {
             continue;
         }
 
@@ -465,54 +461,54 @@ fn generate_checked_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
     }
 }
 
-#[rustfmt::skip]
-const CHECKED_OPERATORS: &[CheckedOperator] = &[
-    CheckedOperator::new("add"       , "integer addition"      , Some("Self"), All         , All         ),
-    CheckedOperator::new("sub"       , "integer subtraction"   , Some("Self"), All         , All         ),
-    CheckedOperator::new("mul"       , "integer multiplication", Some("Self"), All         , All         ),
-    CheckedOperator::new("div"       , "integer division"      , Some("Self"), NoSaturating, NoSaturating),
-    CheckedOperator::new("div_euclid", "Euclidean division"    , Some("Self"), NoSaturating, NoSaturating),
-    CheckedOperator::new("rem"       , "integer remainder"     , Some("Self"), NoSaturating, NoSaturating),
-    CheckedOperator::new("rem_euclid", "Euclidean remainder"   , Some("Self"), NoSaturating, NoSaturating),
-    CheckedOperator::new("neg"       , "negation"              , None        , All         , NoSaturating),
-    CheckedOperator::new("abs"       , "absolute value"        , None        , All         , NoOps       ),
-    CheckedOperator::new("pow"       , "exponentiation"        , Some("u32") , All         , All         ),
-];
-
-#[derive(Eq, PartialEq, Clone, Copy)]
-enum Variants {
-    NoOps,
-    NoSaturating,
-    All,
-}
-
-use Variants::{All, NoOps, NoSaturating};
-
 struct CheckedOperator {
     name: &'static str,
     description: &'static str,
     rhs: Option<&'static str>,
-    signed_variants: Variants,
-    unsigned_variants: Variants,
+    variants: OpVariants,
 }
 
-impl CheckedOperator {
-    const fn new(
-        name: &'static str,
-        description: &'static str,
-        rhs: Option<&'static str>,
-        signed_variants: Variants,
-        unsigned_variants: Variants,
-    ) -> Self {
-        Self {
-            name,
-            description,
-            rhs,
-            signed_variants,
-            unsigned_variants,
-        }
+#[derive(Eq, PartialEq, Clone, Copy)]
+enum OpVariants {
+    /// Checked and saturating ops on all integers.
+    All,
+    /// Checked operators on unsigned integers, checked and saturating ops on signed integers.
+    SignedSaturating,
+    /// Checked operators on all integers.
+    NoSaturating,
+    /// Checked and saturating operations on signed integers.
+    Signed,
+}
+
+macro_rules! tokens_or {
+    (() ($($else:tt)*)) => { $($else)* };
+    (($($tokens:tt)*) ($($else:tt)*)) => { $($tokens)* };
+}
+macro_rules! checked_operators {
+    ($($name:ident ($($rhs:ty)?) $description:literal $variants:ident,)*) => {
+        [$(
+            CheckedOperator {
+                name: stringify!($name),
+                description: $description,
+                rhs: tokens_or!(($(Some(stringify!($rhs)))?) (None)),
+                variants: OpVariants::$variants,
+            }
+        ,)*]
     }
 }
+
+const CHECKED_OPERATORS: &[CheckedOperator] = &checked_operators! {
+    add        (Self) "integer addition"       All             ,
+    sub        (Self) "integer subtraction"    All             ,
+    mul        (Self) "integer multiplication" All             ,
+    div        (Self) "integer division"       NoSaturating    ,
+    div_euclid (Self) "Euclidean division"     NoSaturating    ,
+    rem        (Self) "integer remainder"      NoSaturating    ,
+    rem_euclid (Self) "Euclidean remainder"    NoSaturating    ,
+    neg        (    ) "negation"               SignedSaturating,
+    abs        (    ) "absolute value"         Signed          ,
+    pow        (u32 ) "exponentiation"         All             ,
+};
 
 fn generate_ops_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
     let repr = &item.repr;
@@ -1028,9 +1024,11 @@ fn generate_test_arithmetic(item: &BoundedInteger, tokens: &mut TokenStream) {
             let _: #ident = -#ident::MIN;
             let _: #ident = -&#ident::MIN;
             let _: #ident = #ident::MIN.saturating_neg();
-            let _: Option<#ident> = #ident::MIN.checked_neg();
         });
     }
+    body.extend(quote! {
+        let _: Option<#ident> = #ident::MIN.checked_neg();
+    });
 
     let infallibles = [
         "pow",
