@@ -36,7 +36,6 @@ mod tests {
                 assert_eq!($bounded::MAX_VALUE, 7);
                 assert_eq!($bounded::MIN.get(), -8);
                 assert_eq!($bounded::MAX.get(), 7);
-                assert_eq!($bounded::RANGE, 16);
 
                 assert!($bounded::in_range(0));
                 assert!($bounded::in_range(-8));
@@ -58,24 +57,6 @@ mod tests {
                 assert_eq!($bounded::new_saturating(7).get(), 7);
                 assert_eq!($bounded::new_saturating(8).get(), 7);
                 assert_eq!($bounded::new_saturating(i8::MAX).get(), 7);
-            }
-        };
-    }
-
-    macro_rules! test_wrapping {
-        ($fn:ident, $bounded:ident) => {
-            #[test]
-            fn $fn() {
-                assert_eq!($bounded::new_wrapping(0).get(), 0);
-                assert_eq!($bounded::new_wrapping(-8).get(), -8);
-                assert_eq!($bounded::new_wrapping(-9).get(), 7);
-                assert_eq!($bounded::new_wrapping(7).get(), 7);
-                assert_eq!($bounded::new_wrapping(8).get(), -8);
-                assert_eq!($bounded::new_wrapping(-16).get(), 0);
-                assert_eq!($bounded::new_wrapping(-18).get(), -2);
-                assert_eq!($bounded::new_wrapping(-26).get(), 6);
-                assert_eq!($bounded::new_wrapping(16).get(), 0);
-                assert_eq!($bounded::new_wrapping(24).get(), -8);
             }
         };
     }
@@ -122,13 +103,11 @@ mod tests {
 
     test_range!(test_struct_range, BoundedStruct);
     test_saturating!(test_struct_saturating, BoundedStruct);
-    test_wrapping!(test_struct_wrapping, BoundedStruct);
     test_arithmetic!(test_struct_arithmetic, BoundedStruct);
     test_iter!(test_struct_iter, BoundedStruct);
 
     test_range!(test_enum_range, BoundedEnum);
     test_saturating!(test_enum_saturating, BoundedEnum);
-    test_wrapping!(test_enum_wrapping, BoundedEnum);
     test_arithmetic!(test_enum_arithmetic, BoundedEnum);
     test_iter!(test_enum_iter, BoundedEnum);
 }
