@@ -110,4 +110,39 @@ mod tests {
     test_saturating!(test_enum_saturating, BoundedEnum);
     test_arithmetic!(test_enum_arithmetic, BoundedEnum);
     test_iter!(test_enum_iter, BoundedEnum);
+
+    #[allow(unused_imports)]
+    #[test]
+    fn various_bounded_integers() {
+        bounded_integer! {
+            #[bounded_integer = crate]
+            struct AllBelowZeroStruct { -400..=-203 }
+        }
+        bounded_integer! {
+            #[bounded_integer = crate]
+            enum AllBelowZeroEnum { -500..=-483 }
+        }
+
+        bounded_integer! {
+            #[bounded_integer = crate]
+            struct ByteStruct { 0..256 }
+        }
+        const _: u8 = ByteStruct::MIN_VALUE;
+        bounded_integer! {
+            #[bounded_integer = crate]
+            enum ByteEnum { 0..256 }
+        }
+        const _: u8 = ByteEnum::MIN_VALUE;
+
+        bounded_integer! {
+            #[bounded_integer = crate]
+            struct SignedByteStruct { -128..128 }
+        }
+        const _: i8 = SignedByteStruct::MIN_VALUE;
+        bounded_integer! {
+            #[bounded_integer = crate]
+            struct SignedByteEnum { -128..128 }
+        }
+        const _: i8 = SignedByteEnum::MIN_VALUE;
+    }
 }

@@ -302,7 +302,7 @@ impl Repr {
             Self::new(
                 true,
                 ReprSize::Fixed(cmp::max(
-                    ReprSizeFixed::from_bits(min.bits() + 1)?,
+                    ReprSizeFixed::from_bits((min + 1_u8).bits() + 1)?,
                     ReprSizeFixed::from_bits(max.bits() + 1)?,
                 )),
             )
