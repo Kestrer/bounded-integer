@@ -15,7 +15,7 @@ bounded-integer-macro = { path = "./macro", version = "=0.4.0" }
 serde_crate = { package = "serde", version = "1.0.124", default-features = false, optional = true }
 
 [features]
-examples = []
+examples = ["bounded-integer-macro/generate_tests"]
 serde = ["serde_crate", "bounded-integer-macro/serde"]
 step_trait = ["bounded-integer-macro/step_trait"]
 

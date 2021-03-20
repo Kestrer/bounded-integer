@@ -1,4 +1,4 @@
-use proc_macro2::{Ident, Span, TokenStream};
+use proc_macro2::{Ident, Punct, Spacing, Span, TokenStream};
 use quote::{quote, quote_spanned, ToTokens};
 use syn::Token;
 
@@ -18,8 +18,13 @@ pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
     generate_iter_traits(item, tokens);
     generate_fmt_traits(item, tokens);
     generate_to_primitive_traits(item, tokens);
-    #[cfg(feature = "serde")]
-    generate_serde(item, tokens);
+    if cfg!(feature = "serde") {
+        generate_serde(item, tokens);
+    }
+
+    if cfg!(feature = "generate_tests") {
+        generate_tests(item, tokens);
+    }
 }
 
 fn generate_access_checker(item: &BoundedInteger, tokens: &mut TokenStream) {
@@ -445,6 +450,55 @@ fn generate_checked_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
     }
 }
 
+#[rustfmt::skip]
+const CHECKED_OPERATORS: &[CheckedOperator] = &[
+    CheckedOperator::new("add"       , "integer addition"      , Some("Self"), All         , All         ),
+    CheckedOperator::new("sub"       , "integer subtraction"   , Some("Self"), All         , All         ),
+    CheckedOperator::new("mul"       , "integer multiplication", Some("Self"), All         , All         ),
+    CheckedOperator::new("div"       , "integer division"      , Some("Self"), NoSaturating, NoSaturating),
+    CheckedOperator::new("div_euclid", "Euclidean division"    , Some("Self"), NoSaturating, NoSaturating),
+    CheckedOperator::new("rem"       , "integer remainder"     , Some("Self"), NoSaturating, NoSaturating),
+    CheckedOperator::new("rem_euclid", "Euclidean remainder"   , Some("Self"), NoSaturating, NoSaturating),
+    CheckedOperator::new("neg"       , "negation"              , None        , All         , NoSaturating),
+    CheckedOperator::new("abs"       , "absolute value"        , None        , All         , NoOps       ),
+    CheckedOperator::new("pow"       , "exponentiation"        , Some("u32") , All         , All         ),
+];
+
+#[derive(Eq, PartialEq, Clone, Copy)]
+enum Variants {
+    NoOps,
+    NoSaturating,
+    All,
+}
+
+use Variants::{All, NoOps, NoSaturating};
+
+struct CheckedOperator {
+    name: &'static str,
+    description: &'static str,
+    rhs: Option<&'static str>,
+    signed_variants: Variants,
+    unsigned_variants: Variants,
+}
+
+impl CheckedOperator {
+    const fn new(
+        name: &'static str,
+        description: &'static str,
+        rhs: Option<&'static str>,
+        signed_variants: Variants,
+        unsigned_variants: Variants,
+    ) -> Self {
+        Self {
+            name,
+            description,
+            rhs,
+            signed_variants,
+            unsigned_variants,
+        }
+    }
+}
+
 fn generate_cmp_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
     let ident = &item.ident;
     let repr = &item.repr;
@@ -628,6 +682,24 @@ fn unop_trait_variations(
     });
 }
 
+#[rustfmt::skip]
+const OPERATORS: &[Operator] = &[
+    Operator { trait_name: "Add", method: "add", description: "add"           , bin: true , on_unsigned: true  },
+    Operator { trait_name: "Sub", method: "sub", description: "subtract"      , bin: true , on_unsigned: true  },
+    Operator { trait_name: "Mul", method: "mul", description: "multiply"      , bin: true , on_unsigned: true  },
+    Operator { trait_name: "Div", method: "div", description: "divide"        , bin: true , on_unsigned: true  },
+    Operator { trait_name: "Rem", method: "rem", description: "take remainder", bin: true , on_unsigned: true  },
+    Operator { trait_name: "Neg", method: "neg", description: "negate"        , bin: false, on_unsigned: false },
+];
+
+struct Operator {
+    trait_name: &'static str,
+    method: &'static str,
+    description: &'static str,
+    bin: bool,
+    on_unsigned: bool,
+}
+
 fn generate_iter_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
     let ident = &item.ident;
     let repr = &item.repr;
@@ -741,7 +813,6 @@ fn generate_to_primitive_traits(item: &BoundedInteger, tokens: &mut TokenStream)
     }
 }
 
-#[cfg(feature = "serde")]
 fn generate_serde(item: &BoundedInteger, tokens: &mut TokenStream) {
     let ident = &item.ident;
     let repr = &item.repr;
@@ -787,6 +858,171 @@ fn generate_serde(item: &BoundedInteger, tokens: &mut TokenStream) {
     });
 }
 
+fn generate_tests(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let mut tests = TokenStream::new();
+
+    generate_test_range(item, &mut tests);
+    generate_test_arithmetic(item, &mut tests);
+
+    tokens.extend(quote! {
+        mod tests {
+            use super::*;
+            use ::core::{assert, assert_eq};
+            use ::core::primitive::*;
+            use ::core::option::Option::{self, Some, None};
+            #tests
+        }
+    });
+}
+
+fn generate_test_range(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let ident = &item.ident;
+    let repr = &item.repr;
+
+    let min = item.repr.number_literal(item.range.start());
+    let max = item.repr.number_literal(item.range.end());
+
+    let above_min = item.repr.number_literal(item.range.start() + 1);
+    let below_max = item.repr.number_literal(item.range.end() - 1);
+
+    let opt_literal = |num| {
+        if let Ok(lit) = item.repr.try_number_literal(num) {
+            quote!(Some(#lit))
+        } else {
+            quote!(None)
+        }
+    };
+    let below_range = opt_literal(item.range.start() - 1);
+    let above_range = opt_literal(item.range.end() + 1);
+
+    tokens.extend(quote! {
+        #[test]
+        fn range() {
+            assert_eq!(#ident::MIN_VALUE, #min);
+            assert_eq!(#ident::MAX_VALUE, #max);
+            assert_eq!(#ident::MIN.get(), #min);
+            assert_eq!(#ident::MAX.get(), #max);
+
+            if let Some(below_range) = #below_range {
+                assert!(!#ident::in_range(below_range));
+            } else {
+                assert_eq!(#ident::MIN_VALUE, #repr::MIN);
+            }
+            assert!(#ident::in_range(#min));
+            assert!(#ident::in_range(#above_min));
+            assert!(#ident::in_range(#below_max));
+            assert!(#ident::in_range(#max));
+            if let Some(above_range) = #above_range {
+               assert!(!#ident::in_range(above_range));
+            } else {
+                assert_eq!(#ident::MAX_VALUE, #repr::MAX);
+            }
+        }
+
+        #[test]
+        fn saturating() {
+            assert_eq!(#ident::new_saturating(#repr::MIN), #ident::MIN_VALUE);
+            if let Some(below_range) = #below_range {
+                assert_eq!(#ident::new_saturating(below_range), #ident::MIN_VALUE);
+            }
+            assert_eq!(#ident::new_saturating(#min), #ident::MIN_VALUE);
+
+            assert_eq!(#ident::new_saturating(#above_min).get(), #above_min);
+            assert_eq!(#ident::new_saturating(#below_max).get(), #below_max);
+
+            assert_eq!(#ident::new_saturating(#max), #ident::MAX_VALUE);
+            if let Some(above_range) = #above_range {
+                assert_eq!(#ident::new_saturating(above_range), #ident::MAX_VALUE);
+            }
+            assert_eq!(#ident::new_saturating(#repr::MAX), #ident::MAX_VALUE);
+        }
+    });
+}
+
+fn generate_test_arithmetic(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let ident = &item.ident;
+    let repr = &item.repr;
+
+    let mut body = TokenStream::new();
+
+    for &op in &['+', '-', '*', '/', '%'] {
+        let op = Punct::new(op, Spacing::Joint);
+        body.extend(quote! {
+            let _: #ident = #ident::MIN #op 0;
+            let _: #ident = &#ident::MIN #op 0;
+            let _: #ident = #ident::MIN #op &0;
+            let _: #ident = &#ident::MIN #op &0;
+            let _: #repr = 0 #op #ident::MIN;
+            let _: #repr = 0 #op &#ident::MIN;
+            let _: #repr = &0 #op #ident::MIN;
+            let _: #repr = &0 #op &#ident::MIN;
+            let _: #ident = #ident::MIN #op #ident::MIN;
+            let _: #ident = &#ident::MIN #op #ident::MIN;
+            let _: #ident = #ident::MIN #op &#ident::MIN;
+            let _: #ident = &#ident::MIN #op &#ident::MIN;
+            *&mut #ident::MIN #op= 0;
+            *&mut #ident::MIN #op= &0;
+            *&mut #ident::MIN #op= #ident::MIN;
+            *&mut #ident::MIN #op= &#ident::MIN;
+            *&mut 0 #op= #ident::MIN;
+            *&mut 0 #op= &#ident::MIN;
+        });
+    }
+
+    if item.repr.signed {
+        body.extend(quote! {
+            let _: #ident = #ident::MIN.abs();
+            let _: Option<#ident> = #ident::MIN.checked_abs();
+
+            let _: #ident = -#ident::MIN;
+            let _: #ident = -&#ident::MIN;
+            let _: #ident = #ident::MIN.saturating_neg();
+            let _: Option<#ident> = #ident::MIN.checked_neg();
+        });
+    }
+
+    let infallibles = [
+        "pow",
+        "div_euclid",
+        "rem_euclid",
+        "saturating_add",
+        "saturating_sub",
+        "saturating_mul",
+        "saturating_pow",
+    ];
+    let fallibles = [
+        "add",
+        "sub",
+        "mul",
+        "div",
+        "div_euclid",
+        "rem",
+        "rem_euclid",
+        "pow",
+    ];
+    for method in &infallibles {
+        let method = Ident::new(method, Span::call_site());
+        body.extend(quote! {
+            let _: #ident = #ident::MIN.#method(0);
+        });
+    }
+    for method in &fallibles {
+        let method = Ident::new(&format!("checked_{}", method), Span::call_site());
+        body.extend(quote! {
+            let _: Option<#ident> = #ident::MIN.#method(0);
+        });
+    }
+
+    tokens.extend(quote! {
+        #[test]
+        fn arithmetic() {
+            // Don't run the tests, as they might panic. We just need to make sure these methods
+            // exist.
+            if false { #body }
+        }
+    });
+}
+
 fn enum_variant(i: &BigInt) -> Ident {
     Ident::new(
         &*match i.sign() {
@@ -796,73 +1032,6 @@ fn enum_variant(i: &BigInt) -> Ident {
         },
         Span::call_site(),
     )
-}
-
-#[rustfmt::skip]
-const CHECKED_OPERATORS: &[CheckedOperator] = &[
-    CheckedOperator::new("add"       , "integer addition"      , Some("Self"), All         , All         ),
-    CheckedOperator::new("sub"       , "integer subtraction"   , Some("Self"), All         , All         ),
-    CheckedOperator::new("mul"       , "integer multiplication", Some("Self"), All         , All         ),
-    CheckedOperator::new("div"       , "integer division"      , Some("Self"), NoSaturating, NoSaturating),
-    CheckedOperator::new("div_euclid", "Euclidean division"    , Some("Self"), NoSaturating, NoSaturating),
-    CheckedOperator::new("rem"       , "integer remainder"     , Some("Self"), NoSaturating, NoSaturating),
-    CheckedOperator::new("rem_euclid", "Euclidean remainder"   , Some("Self"), NoSaturating, NoSaturating),
-    CheckedOperator::new("neg"       , "negation"              , None        , All         , NoSaturating),
-    CheckedOperator::new("abs"       , "absolute value"        , None        , All         , NoOps       ),
-    CheckedOperator::new("pow"       , "exponentiation"        , Some("u32") , All         , All         ),
-];
-
-#[derive(Eq, PartialEq, Clone, Copy)]
-enum Variants {
-    NoOps,
-    NoSaturating,
-    All,
-}
-
-use Variants::{All, NoOps, NoSaturating};
-
-struct CheckedOperator {
-    name: &'static str,
-    description: &'static str,
-    rhs: Option<&'static str>,
-    signed_variants: Variants,
-    unsigned_variants: Variants,
-}
-
-impl CheckedOperator {
-    const fn new(
-        name: &'static str,
-        description: &'static str,
-        rhs: Option<&'static str>,
-        signed_variants: Variants,
-        unsigned_variants: Variants,
-    ) -> Self {
-        Self {
-            name,
-            description,
-            rhs,
-            signed_variants,
-            unsigned_variants,
-        }
-    }
-}
-
-#[rustfmt::skip]
-const OPERATORS: &[Operator] = &[
-    Operator { trait_name: "Add", method: "add", description: "add"           , bin: true , on_unsigned: true  },
-    Operator { trait_name: "Sub", method: "sub", description: "subtract"      , bin: true , on_unsigned: true  },
-    Operator { trait_name: "Mul", method: "mul", description: "multiply"      , bin: true , on_unsigned: true  },
-    Operator { trait_name: "Div", method: "div", description: "divide"        , bin: true , on_unsigned: true  },
-    Operator { trait_name: "Rem", method: "rem", description: "take remainder", bin: true , on_unsigned: true  },
-    Operator { trait_name: "Neg", method: "neg", description: "negate"        , bin: false, on_unsigned: false },
-];
-
-struct Operator {
-    trait_name: &'static str,
-    method: &'static str,
-    description: &'static str,
-    bin: bool,
-    on_unsigned: bool,
 }
 
 #[cfg(test)]

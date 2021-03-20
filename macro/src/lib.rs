@@ -6,6 +6,7 @@
     unused_qualifications
 )]
 
+use std::borrow::Borrow;
 use std::cmp;
 use std::convert::TryInto;
 use std::fmt::{self, Display, Formatter};
@@ -20,7 +21,7 @@ use syn::{BinOp, ExprBinary, ExprRange, ExprUnary, RangeLimits, UnOp};
 use syn::{ExprGroup, ExprParen};
 use syn::{ExprLit, Lit};
 
-use num_bigint::BigInt;
+use num_bigint::{BigInt, TryFromBigIntError};
 
 mod generate;
 
@@ -345,12 +346,15 @@ impl Repr {
         })
     }
 
-    fn number_literal(&self, value: &BigInt) -> Literal {
+    fn try_number_literal(
+        &self,
+        value: impl Borrow<BigInt>,
+    ) -> Result<Literal, TryFromBigIntError<()>> {
         macro_rules! match_repr {
             ($($sign:ident $size:ident $(($fixed:ident))? => $f:ident,)*) => {
                 match (self.signed, self.size) {
                     $((signed!($sign), ReprSize::$size $((ReprSizeFixed::$fixed))?) => {
-                        Literal::$f(value.try_into().unwrap())
+                        Ok(Literal::$f(value.borrow().try_into()?))
                     })*
                 }
             }
@@ -370,6 +374,10 @@ impl Repr {
             signed Fixed(Fixed128) => i128_suffixed,
             signed Pointer => isize_suffixed,
         }
+    }
+
+    fn number_literal(&self, value: impl Borrow<BigInt>) -> Literal {
+        self.try_number_literal(value).unwrap()
     }
 
     fn larger_reprs(&self) -> impl Iterator<Item = Self> {
