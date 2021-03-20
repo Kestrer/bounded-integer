@@ -269,6 +269,7 @@ fn generate_checked_constructors(item: &BoundedInteger, tokens: &mut TokenStream
     tokens.extend(quote! {
         /// Checks whether the given value is in the range of the bounded integer.
         #[must_use]
+        #[inline]
         #vis const fn in_range(n: ::core::primitive::#repr) -> ::core::primitive::bool {
             n >= Self::MIN_VALUE && n <= Self::MAX_VALUE
         }
@@ -276,6 +277,7 @@ fn generate_checked_constructors(item: &BoundedInteger, tokens: &mut TokenStream
         /// Creates a bounded integer if the given value is within the range
         /// [[`MIN`](Self::MIN), [`MAX`](Self::MAX)].
         #[must_use]
+        #[inline]
         #vis const fn new(n: ::core::primitive::#repr) -> ::core::option::Option<Self> {
             #new_body
         }
@@ -283,6 +285,7 @@ fn generate_checked_constructors(item: &BoundedInteger, tokens: &mut TokenStream
         /// Creates a reference to a bounded integer from a reference to a primitive if the
         /// given value is within the range [[`MIN`](Self::MIN), [`MAX`](Self::MAX)].
         #[must_use]
+        #[inline]
         #vis fn new_ref(n: &::core::primitive::#repr) -> ::core::option::Option<&Self> {
             if Self::in_range(*n) {
                 // SAFETY: We just asserted that the value is in range.
@@ -296,6 +299,7 @@ fn generate_checked_constructors(item: &BoundedInteger, tokens: &mut TokenStream
         /// primitive if the given value is within the range
         /// [[`MIN`](Self::MIN), [`MAX`](Self::MAX)].
         #[must_use]
+        #[inline]
         #vis fn new_mut(n: &mut ::core::primitive::#repr) -> ::core::option::Option<&mut Self> {
             if Self::in_range(*n) {
                 // SAFETY: We just asserted that the value is in range.
@@ -308,6 +312,7 @@ fn generate_checked_constructors(item: &BoundedInteger, tokens: &mut TokenStream
         /// Creates a bounded integer by setting the value to [`MIN`](Self::MIN) or
         /// [`MAX`](Self::MAX) if it is too low or too high respectively.
         #[must_use]
+        #[inline]
         #vis const fn new_saturating(n: ::core::primitive::#repr) -> Self {
             #new_saturating_body
         }
@@ -326,6 +331,7 @@ fn generate_getters(item: &BoundedInteger, tokens: &mut TokenStream) {
     tokens.extend(quote! {
         /// Returns the value of the bounded integer as a primitive type.
         #[must_use]
+        #[inline]
         #vis const fn get(self) -> ::core::primitive::#repr {
             #get_body
         }
@@ -342,6 +348,7 @@ fn generate_getters(item: &BoundedInteger, tokens: &mut TokenStream) {
     tokens.extend(quote! {
         /// Returns a shared reference to the value of the bounded integer.
         #[must_use]
+        #[inline]
         #vis #get_ref_const fn get_ref(&self) -> &::core::primitive::#repr {
             #get_ref_body
         }
@@ -352,6 +359,7 @@ fn generate_getters(item: &BoundedInteger, tokens: &mut TokenStream) {
         ///
         /// This value must never be set to a value beyond the range of the bounded integer.
         #[must_use]
+        #[inline]
         #vis unsafe fn get_mut(&mut self) -> &mut ::core::primitive::#repr {
             &mut *(self as *mut Self as *mut ::core::primitive::#repr)
         }
@@ -366,6 +374,7 @@ fn generate_inherent_operators(item: &BoundedInteger, tokens: &mut TokenStream) 
         tokens.extend(quote! {
             /// Computes the absolute value of `self`, panicking if it is out of range.
             #[must_use]
+            #[inline]
             #vis fn abs(self) -> Self {
                 Self::new(self.get().abs()).expect("Absolute value out of range")
             }
@@ -376,18 +385,21 @@ fn generate_inherent_operators(item: &BoundedInteger, tokens: &mut TokenStream) 
         /// Raises `self` to the power of `exp`, using exponentiation by squaring. Panics if it
         /// is out of range.
         #[must_use]
+        #[inline]
         #vis fn pow(self, exp: ::core::primitive::u32) -> Self {
             Self::new(self.get().pow(exp)).expect("Value raised to power out of range")
         }
         /// Calculates the quotient of Euclidean division of `self` by `rhs`. Panics if `rhs`
         /// is 0 or the result is out of range.
         #[must_use]
+        #[inline]
         #vis fn div_euclid(self, rhs: ::core::primitive::#repr) -> Self {
             Self::new(self.get().div_euclid(rhs)).expect("Attempted to divide out of range")
         }
         /// Calculates the least nonnegative remainder of `self (mod rhs)`. Panics if `rhs` is 0
         /// or the result is out of range.
         #[must_use]
+        #[inline]
         #vis fn rem_euclid(self, rhs: ::core::primitive::#repr) -> Self {
             Self::new(self.get().rem_euclid(rhs))
                 .expect("Attempted to divide with remainder out of range")
@@ -429,6 +441,7 @@ fn generate_checked_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
         tokens.extend(quote! {
             #[doc = #checked_comment]
             #[must_use]
+            #[inline]
             #vis fn #checked_name(self, #rhs_type) -> ::core::option::Option<Self> {
                 self.get().#checked_name(#rhs_value).and_then(Self::new)
             }
@@ -444,6 +457,7 @@ fn generate_checked_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
         tokens.extend(quote! {
             #[doc = #saturating_comment]
             #[must_use]
+            #[inline]
             #vis fn #saturating_name(self, #rhs_type) -> Self {
                 Self::new_saturating(self.get().#saturating_name(#rhs_value))
             }
@@ -589,35 +603,41 @@ fn binop_trait_variations<B: ToTokens>(
     tokens.extend(quote! {
         impl ::core::ops::#trait_name<#rhs> for #lhs {
             type Output = #lhs;
+            #[inline]
             fn #method(self, rhs: #rhs) -> Self::Output {
                 #body
             }
         }
         impl ::core::ops::#trait_name<#rhs> for &#lhs {
             type Output = #lhs;
+            #[inline]
             fn #method(self, rhs: #rhs) -> Self::Output {
                 <#lhs as ::core::ops::#trait_name<#rhs>>::#method(*self, rhs)
             }
         }
         impl<'b> ::core::ops::#trait_name<&'b #rhs> for #lhs {
             type Output = #lhs;
+            #[inline]
             fn #method(self, rhs: &'b #rhs) -> Self::Output {
                 <#lhs as ::core::ops::#trait_name<#rhs>>::#method(self, *rhs)
             }
         }
         impl<'a> ::core::ops::#trait_name<&'a #rhs> for &#lhs {
             type Output = #lhs;
+            #[inline]
             fn #method(self, rhs: &'a #rhs) -> Self::Output {
                 <#lhs as ::core::ops::#trait_name<#rhs>>::#method(*self, *rhs)
             }
         }
 
         impl ::core::ops::#trait_name_assign<#rhs> for #lhs {
+            #[inline]
             fn #method_assign(&mut self, rhs: #rhs) {
                 *self = <Self as ::core::ops::#trait_name<#rhs>>::#method(*self, rhs);
             }
         }
         impl<'a> ::core::ops::#trait_name_assign<&'a #rhs> for #lhs {
+            #[inline]
             fn #method_assign(&mut self, rhs: &'a #rhs) {
                 *self = <Self as ::core::ops::#trait_name<#rhs>>::#method(*self, *rhs);
             }
@@ -635,12 +655,14 @@ fn unop_trait_variations(
     tokens.extend(quote! {
         impl ::core::ops::#trait_name for #lhs {
             type Output = #lhs;
+            #[inline]
             fn #method(self) -> Self::Output {
                 #body
             }
         }
         impl ::core::ops::#trait_name for &#lhs {
             type Output = #lhs;
+            #[inline]
             fn #method(self) -> Self::Output {
                 <#lhs as ::core::ops::#trait_name>::#method(*self)
             }
@@ -673,16 +695,19 @@ fn generate_cmp_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
     // These are only impls that can't be derived
     tokens.extend(quote! {
         impl ::core::cmp::PartialEq<::core::primitive::#repr> for #ident {
+            #[inline]
             fn eq(&self, other: &::core::primitive::#repr) -> bool {
                 self.get() == *other
             }
         }
         impl ::core::cmp::PartialEq<#ident> for ::core::primitive::#repr {
+            #[inline]
             fn eq(&self, other: &#ident) -> bool {
                 *self == other.get()
             }
         }
         impl ::core::cmp::PartialOrd<::core::primitive::#repr> for #ident {
+            #[inline]
             fn partial_cmp(
                 &self,
                 other: &::core::primitive::#repr
@@ -691,6 +716,7 @@ fn generate_cmp_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
             }
         }
         impl ::core::cmp::PartialOrd<#ident> for ::core::primitive::#repr {
+            #[inline]
             fn partial_cmp(
                 &self,
                 other: &#ident
@@ -707,11 +733,13 @@ fn generate_as_ref_borrow(item: &BoundedInteger, tokens: &mut TokenStream) {
 
     tokens.extend(quote! {
         impl ::core::convert::AsRef<::core::primitive::#repr> for #ident {
+            #[inline]
             fn as_ref(&self) -> &::core::primitive::#repr {
                 self.get_ref()
             }
         }
         impl ::core::borrow::Borrow<::core::primitive::#repr> for #ident {
+            #[inline]
             fn borrow(&self) -> &::core::primitive::#repr {
                 self.get_ref()
             }
@@ -785,12 +813,15 @@ fn generate_iter_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
     {
         tokens.extend(quote! {
             unsafe impl ::core::iter::Step for #ident {
+                #[inline]
                 fn steps_between(start: &Self, end: &Self) -> ::core::option::Option<::core::primitive::usize> {
                     ::core::iter::Step::steps_between(&start.get(), &end.get())
                 }
+                #[inline]
                 fn forward_checked(start: Self, count: ::core::primitive::usize) -> ::core::option::Option<Self> {
                     ::core::iter::Step::forward_checked(start.get(), count).and_then(Self::new)
                 }
+                #[inline]
                 fn backward_checked(start: Self, count: ::core::primitive::usize) -> ::core::option::Option<Self> {
                     ::core::iter::Step::backward_checked(start.get(), count).and_then(Self::new)
                 }
@@ -824,6 +855,7 @@ fn generate_to_primitive_traits(item: &BoundedInteger, tokens: &mut TokenStream)
     for repr in item.repr.larger_reprs() {
         tokens.extend(quote! {
             impl ::core::convert::From<#ident> for ::core::primitive::#repr {
+                #[inline]
                 fn from(bounded: #ident) -> Self {
                     ::core::convert::From::from(bounded.get())
                 }
