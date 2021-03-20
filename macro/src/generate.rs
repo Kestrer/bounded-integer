@@ -119,10 +119,6 @@ fn generate_consts(item: &BoundedInteger, tokens: &mut TokenStream) {
         "The largest value of the bounded integer; {}.",
         item.range.end()
     );
-    let range_doc = format!(
-        "The number of values the bounded integer contains; {}.",
-        item.range.end() - item.range.start() + 1
-    );
 
     tokens.extend(quote! {
         impl #ident {
@@ -135,9 +131,6 @@ fn generate_consts(item: &BoundedInteger, tokens: &mut TokenStream) {
             #vis const MIN: Self = #min;
             #[doc = #max_doc]
             #vis const MAX: Self = #max;
-
-            #[doc = #range_doc]
-            #vis const RANGE: ::core::primitive::#repr = Self::MAX_VALUE - Self::MIN_VALUE + 1;
         }
     });
 }
@@ -288,18 +281,6 @@ fn generate_constructors(item: &BoundedInteger, tokens: &mut TokenStream) {
             #[must_use]
             #vis const fn new_saturating(n: ::core::primitive::#repr) -> Self {
                 #new_saturating_body
-            }
-
-            /// Creates a bounded integer by using modulo arithmetic. Values in the range won't be
-            /// changed but values outside will be wrapped around.
-            #[must_use]
-            #vis fn new_wrapping(n: ::core::primitive::#repr) -> Self {
-                unsafe {
-                    Self::new_unchecked(
-                        (n + (Self::RANGE - (Self::MIN_VALUE.rem_euclid(Self::RANGE)))).rem_euclid(Self::RANGE)
-                            + Self::MIN_VALUE
-                    )
-                }
             }
         }
     });
