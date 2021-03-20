@@ -8,14 +8,8 @@ use crate::{BoundedInteger, Kind};
 
 pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
     generate_access_checker(item, tokens);
-
     generate_item(item, tokens);
-
-    generate_consts(item, tokens);
-    generate_constructors(item, tokens);
-    generate_getters(item, tokens);
-    generate_operators(item, tokens);
-    generate_checked_operators(item, tokens);
+    generate_impl(item, tokens);
 
     // TODO: Implement FromStr, TryFrom and TryInto. This will require adding error types to the
     // main crate.
@@ -89,11 +83,60 @@ fn generate_item(item: &BoundedInteger, tokens: &mut TokenStream) {
     }
 }
 
-fn generate_consts(item: &BoundedInteger, tokens: &mut TokenStream) {
+fn generate_impl(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let ident = &item.ident;
+
+    let mut content = TokenStream::new();
+    generate_min_max_value(item, &mut content);
+    generate_min_max(item, &mut content);
+    generate_unchecked_constructors(item, &mut content);
+    generate_checked_constructors(item, &mut content);
+    generate_getters(item, &mut content);
+    generate_inherent_operators(item, &mut content);
+    generate_checked_operators(item, &mut content);
+
+    tokens.extend(quote! {
+        impl #ident {
+            #content
+        }
+    });
+}
+
+fn generate_min_max_value(item: &BoundedInteger, tokens: &mut TokenStream) {
     let repr = &item.repr;
+    let vis = &item.vis;
+
+    let min_value_doc = format!(
+        "The smallest value that this bounded integer can contain; {}.",
+        item.range.start()
+    );
+    let max_value_doc = format!(
+        "The largest value that this bounded integer can contain; {}.",
+        item.range.end()
+    );
 
     let min_value = repr.number_literal(item.range.start()).into_token_stream();
     let max_value = repr.number_literal(item.range.end()).into_token_stream();
+
+    tokens.extend(quote! {
+        #[doc = #min_value_doc]
+        #vis const MIN_VALUE: ::core::primitive::#repr = #min_value;
+        #[doc = #max_value_doc]
+        #vis const MAX_VALUE: ::core::primitive::#repr = #max_value;
+    });
+}
+
+fn generate_min_max(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let vis = &item.vis;
+
+    let min_doc = format!(
+        "The smallest value of the bounded integer; {}.",
+        item.range.start()
+    );
+    let max_doc = format!(
+        "The largest value of the bounded integer; {}.",
+        item.range.end()
+    );
 
     let (min, max) = match &item.kind {
         Kind::Struct(_) => (quote!(Self(Self::MIN_VALUE)), quote!(Self(Self::MAX_VALUE))),
@@ -107,46 +150,16 @@ fn generate_consts(item: &BoundedInteger, tokens: &mut TokenStream) {
         }
     };
 
-    let ident = &item.ident;
-    let vis = &item.vis;
-
-    let min_value_doc = format!(
-        "The smallest value that this bounded integer can contain; {}.",
-        item.range.start()
-    );
-    let max_value_doc = format!(
-        "The largest value that this bounded integer can contain; {}.",
-        item.range.end()
-    );
-    let min_doc = format!(
-        "The smallest value of the bounded integer; {}.",
-        item.range.start()
-    );
-    let max_doc = format!(
-        "The largest value of the bounded integer; {}.",
-        item.range.end()
-    );
-
     tokens.extend(quote! {
-        impl #ident {
-            #[doc = #min_value_doc]
-            #vis const MIN_VALUE: ::core::primitive::#repr = #min_value;
-            #[doc = #max_value_doc]
-            #vis const MAX_VALUE: ::core::primitive::#repr = #max_value;
-
-            #[doc = #min_doc]
-            #vis const MIN: Self = #min;
-            #[doc = #max_doc]
-            #vis const MAX: Self = #max;
-        }
+        #[doc = #min_doc]
+        #vis const MIN: Self = #min;
+        #[doc = #max_doc]
+        #vis const MAX: Self = #max;
     });
 }
 
-#[allow(clippy::too_many_lines)]
-fn generate_constructors(item: &BoundedInteger, tokens: &mut TokenStream) {
+fn generate_unchecked_constructors(item: &BoundedInteger, tokens: &mut TokenStream) {
     let repr = &item.repr;
-
-    let ident = &item.ident;
     let vis = &item.vis;
 
     let (new_unchecked_const, new_unchecked_body) = match item.kind {
@@ -156,6 +169,44 @@ fn generate_constructors(item: &BoundedInteger, tokens: &mut TokenStream) {
             quote!(::core::mem::transmute::<::core::primitive::#repr, Self>(n)),
         ),
     };
+
+    let safety_doc = "
+# Safety
+
+The value must not be outside the valid range of values; it must not be less than
+[`MIN_VALUE`](Self::MIN_VALUE) or greater than [`MAX_VALUE`](Self::MAX_VALUE).\
+    ";
+
+    tokens.extend(quote! {
+        /// Creates a bounded integer without checking the value.
+        #[doc = #safety_doc]
+        #[must_use]
+        #vis #new_unchecked_const unsafe fn new_unchecked(n: ::core::primitive::#repr) -> Self {
+            #new_unchecked_body
+        }
+
+        /// Creates a shared reference to a bounded integer from a shared reference to a primitive.
+        #[doc = #safety_doc]
+        #[must_use]
+        #vis unsafe fn new_ref_unchecked(n: &::core::primitive::#repr) -> &Self {
+            ::core::debug_assert!(Self::in_range(*n));
+            &*(n as *const ::core::primitive::#repr as *const Self)
+        }
+
+        /// Creates a mutable reference to a bounded integer from a mutable reference to a
+        /// primitive.
+        #[doc = #safety_doc]
+        #[must_use]
+        #vis unsafe fn new_mut_unchecked(n: &mut ::core::primitive::#repr) -> &mut Self {
+            ::core::debug_assert!(Self::in_range(*n));
+            &mut *(n as *mut ::core::primitive::#repr as *mut Self)
+        }
+    });
+}
+
+fn generate_checked_constructors(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let repr = &item.repr;
+    let vis = &item.vis;
 
     let (new_body, new_saturating_body) = match item.kind {
         Kind::Struct(_) => (
@@ -210,99 +261,69 @@ fn generate_constructors(item: &BoundedInteger, tokens: &mut TokenStream) {
     };
 
     tokens.extend(quote! {
-        impl #ident {
-            /// Creates a bounded integer without checking the value.
-            ///
-            /// # Safety
-            ///
-            /// The value must not be outside the valid range of values; it must not be less than
-            /// [`MIN`](Self::MIN) or greater than [`MAX`](Self::MAX).
-            #[must_use]
-            #vis #new_unchecked_const unsafe fn new_unchecked(n: ::core::primitive::#repr) -> Self {
-                #new_unchecked_body
-            }
+        /// Checks whether the given value is in the range of the bounded integer.
+        #[must_use]
+        #vis const fn in_range(n: ::core::primitive::#repr) -> ::core::primitive::bool {
+            n >= Self::MIN_VALUE && n <= Self::MAX_VALUE
+        }
 
-            /// Creates a reference to a bounded integer from a reference to a primitive.
-            ///
-            /// # Safety
-            ///
-            /// The value must not be outside the valid range of values; it must not be less than
-            /// `MIN` or greater than `MAX`.
-            #[must_use]
-            #vis unsafe fn new_ref_unchecked(n: &::core::primitive::#repr) -> &Self {
-                &*(n as *const ::core::primitive::#repr as *const Self)
-            }
+        /// Creates a bounded integer if the given value is within the range
+        /// [[`MIN`](Self::MIN), [`MAX`](Self::MAX)].
+        #[must_use]
+        #vis const fn new(n: ::core::primitive::#repr) -> ::core::option::Option<Self> {
+            #new_body
+        }
 
-            /// Creates a mutable reference to a bounded integer from a mutable reference to a
-            /// primitive.
-            ///
-            /// # Safety
-            ///
-            /// The value must not be outside the valid range of values; it must not be less than
-            /// [`MIN`](Self::MIN) or greater than [`MAX`](Self::MAX).
-            #[must_use]
-            #vis unsafe fn new_mut_unchecked(n: &mut ::core::primitive::#repr) -> &mut Self {
-                &mut *(n as *mut ::core::primitive::#repr as *mut Self)
+        /// Creates a reference to a bounded integer from a reference to a primitive if the
+        /// given value is within the range [[`MIN`](Self::MIN), [`MAX`](Self::MAX)].
+        #[must_use]
+        #vis fn new_ref(n: &::core::primitive::#repr) -> ::core::option::Option<&Self> {
+            if Self::in_range(*n) {
+                // SAFETY: We just asserted that the value is in range.
+                ::core::option::Option::Some(unsafe { Self::new_ref_unchecked(n) })
+            } else {
+                ::core::option::Option::None
             }
+        }
 
-            /// Checks whether the given value is in the range of the bounded integer.
-            #[must_use]
-            #vis const fn in_range(n: ::core::primitive::#repr) -> ::core::primitive::bool {
-                n >= Self::MIN_VALUE && n <= Self::MAX_VALUE
+        /// Creates a mutable reference to a bounded integer from a mutable reference to a
+        /// primitive if the given value is within the range
+        /// [[`MIN`](Self::MIN), [`MAX`](Self::MAX)].
+        #[must_use]
+        #vis fn new_mut(n: &mut ::core::primitive::#repr) -> ::core::option::Option<&mut Self> {
+            if Self::in_range(*n) {
+                // SAFETY: We just asserted that the value is in range.
+                ::core::option::Option::Some(unsafe { Self::new_mut_unchecked(n) })
+            } else {
+                ::core::option::Option::None
             }
+        }
 
-            /// Creates a bounded integer if the given value is within the range
-            /// [[`MIN`](Self::MIN), [`MAX`](Self::MAX)].
-            #[must_use]
-            #vis const fn new(n: ::core::primitive::#repr) -> ::core::option::Option<Self> {
-                #new_body
-            }
-
-            /// Creates a reference to a bounded integer from a reference to a primitive if the
-            /// given value is within the range [`MIN`, `MAX`].
-            #[must_use]
-            #vis fn new_ref(n: &::core::primitive::#repr) -> ::core::option::Option<&Self> {
-                if Self::in_range(*n) {
-                    // SAFETY: We just asserted that the value is in range.
-                    ::core::option::Option::Some(unsafe { Self::new_ref_unchecked(n) })
-                } else {
-                    ::core::option::Option::None
-                }
-            }
-
-            /// Creates a mutable reference to a bounded integer from a mutable reference to a
-            /// primitive if the given value is within the range
-            /// [[`MIN`](Self::MIN), [`MAX`](Self::MAX)].
-            #[must_use]
-            #vis fn new_mut(n: &mut ::core::primitive::#repr) -> ::core::option::Option<&mut Self> {
-                if Self::in_range(*n) {
-                    // SAFETY: We just asserted that the value is in range.
-                    ::core::option::Option::Some(unsafe { Self::new_mut_unchecked(n) })
-                } else {
-                    ::core::option::Option::None
-                }
-            }
-
-            /// Creates a bounded integer by setting the value to [`MIN`](Self::MIN) or
-            /// [`MAX`](Self::MAX) if it is too low or too high respectively.
-            #[must_use]
-            #vis const fn new_saturating(n: ::core::primitive::#repr) -> Self {
-                #new_saturating_body
-            }
+        /// Creates a bounded integer by setting the value to [`MIN`](Self::MIN) or
+        /// [`MAX`](Self::MAX) if it is too low or too high respectively.
+        #[must_use]
+        #vis const fn new_saturating(n: ::core::primitive::#repr) -> Self {
+            #new_saturating_body
         }
     });
 }
 
 fn generate_getters(item: &BoundedInteger, tokens: &mut TokenStream) {
     let repr = &item.repr;
-
-    let ident = &item.ident;
     let vis = &item.vis;
 
     let get_body = match item.kind {
         Kind::Struct(_) => quote!(self.0),
         Kind::Enum(_) => quote!(self as _),
     };
+
+    tokens.extend(quote! {
+        /// Returns the value of the bounded integer as a primitive type.
+        #[must_use]
+        #vis const fn get(self) -> ::core::primitive::#repr {
+            #get_body
+        }
+    });
 
     let (get_ref_const, get_ref_body) = match item.kind {
         Kind::Struct(_) => (Some(Token![const](Span::call_site())), quote!(&self.0)),
@@ -313,75 +334,115 @@ fn generate_getters(item: &BoundedInteger, tokens: &mut TokenStream) {
     };
 
     tokens.extend(quote! {
-        impl #ident {
-            /// Gets the value of the bounded integer as a primitive type.
-            #[must_use]
-            #vis const fn get(self) -> ::core::primitive::#repr {
-                #get_body
-            }
+        /// Returns a shared reference to the value of the bounded integer.
+        #[must_use]
+        #vis #get_ref_const fn get_ref(&self) -> &::core::primitive::#repr {
+            #get_ref_body
+        }
 
-            /// Gets a reference to the value of the bounded integer.
-            #[must_use]
-            #vis #get_ref_const fn get_ref(&self) -> &::core::primitive::#repr {
-                #get_ref_body
-            }
-
-            /// Gets a mutable reference to the value of the bounded integer.
-            ///
-            /// # Safety
-            ///
-            /// This value must never be set to a value beyond the range of the bounded integer.
-            #[must_use]
-            #vis unsafe fn get_mut(&mut self) -> &mut ::core::primitive::#repr {
-                &mut *(self as *mut Self as *mut ::core::primitive::#repr)
-            }
+        /// Returns a mutable reference to the value of the bounded integer.
+        ///
+        /// # Safety
+        ///
+        /// This value must never be set to a value beyond the range of the bounded integer.
+        #[must_use]
+        #vis unsafe fn get_mut(&mut self) -> &mut ::core::primitive::#repr {
+            &mut *(self as *mut Self as *mut ::core::primitive::#repr)
         }
     });
 }
 
-fn generate_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
+fn generate_inherent_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
     let vis = &item.vis;
     let repr = &item.repr;
 
-    let abs_if_signed = if item.repr.signed {
-        quote! {
+    if item.repr.signed {
+        tokens.extend(quote! {
             /// Computes the absolute value of `self`, panicking if it is out of range.
             #[must_use]
             #vis fn abs(self) -> Self {
                 Self::new(self.get().abs()).expect("Absolute value out of range")
             }
-        }
-    } else {
-        TokenStream::new()
-    };
-
-    let ident = &item.ident;
+        });
+    }
 
     tokens.extend(quote! {
-        impl #ident {
-            #abs_if_signed
-
-            /// Raises self to the power of `exp`, using exponentiation by squaring. Panics if it
-            /// is out of range.
-            #[must_use]
-            #vis fn pow(self, exp: ::core::primitive::u32) -> Self {
-                Self::new(self.get().pow(exp)).expect("Value raised to power out of range")
-            }
-            /// Calculates the quotient of Euclidean division of `self` by `rhs`. Panics if `rhs`
-            /// is 0 or the result is out of range.
-            #[must_use]
-            #vis fn div_euclid(self, rhs: ::core::primitive::#repr) -> Self {
-                Self::new(self.get().div_euclid(rhs)).expect("Attempted to divide out of range")
-            }
-            /// Calculates the least nonnegative remainder of `self (mod rhs)`. Panics if `rhs` is 0
-            /// or the result is out of range.
-            #[must_use]
-            #vis fn rem_euclid(self, rhs: ::core::primitive::#repr) -> Self {
-                Self::new(self.get().rem_euclid(rhs))
-                    .expect("Attempted to divide with remainder out of range")
-            }
+        /// Raises `self` to the power of `exp`, using exponentiation by squaring. Panics if it
+        /// is out of range.
+        #[must_use]
+        #vis fn pow(self, exp: ::core::primitive::u32) -> Self {
+            Self::new(self.get().pow(exp)).expect("Value raised to power out of range")
+        }
+        /// Calculates the quotient of Euclidean division of `self` by `rhs`. Panics if `rhs`
+        /// is 0 or the result is out of range.
+        #[must_use]
+        #vis fn div_euclid(self, rhs: ::core::primitive::#repr) -> Self {
+            Self::new(self.get().div_euclid(rhs)).expect("Attempted to divide out of range")
+        }
+        /// Calculates the least nonnegative remainder of `self (mod rhs)`. Panics if `rhs` is 0
+        /// or the result is out of range.
+        #[must_use]
+        #vis fn rem_euclid(self, rhs: ::core::primitive::#repr) -> Self {
+            Self::new(self.get().rem_euclid(rhs))
+                .expect("Attempted to divide with remainder out of range")
         }
     });
+}
+
+fn generate_checked_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let vis = &item.vis;
+
+    for op in CHECKED_OPERATORS {
+        let variants = if item.repr.signed {
+            op.signed_variants
+        } else {
+            op.unsigned_variants
+        };
+
+        if variants == NoOps {
+            continue;
+        }
+
+        let rhs = match op.rhs {
+            Some("Self") => Some({
+                let repr = &item.repr;
+                quote!(::core::primitive::#repr)
+            }),
+            Some(name) => Some({
+                let ident = Ident::new(name, Span::call_site());
+                quote!(::core::primitive::#ident)
+            }),
+            None => None,
+        };
+        let rhs_type = rhs.as_ref().map(|ty| quote!(rhs: #ty,));
+        let rhs_value = rhs.map(|_| quote!(rhs,));
+
+        let checked_name = Ident::new(&format!("checked_{}", op.name), Span::call_site());
+        let checked_comment = format!("Checked {}.", op.description);
+
+        tokens.extend(quote! {
+            #[doc = #checked_comment]
+            #[must_use]
+            #vis fn #checked_name(self, #rhs_type) -> ::core::option::Option<Self> {
+                self.get().#checked_name(#rhs_value).and_then(Self::new)
+            }
+        });
+
+        if variants != All {
+            continue;
+        }
+
+        let saturating_name = Ident::new(&format!("saturating_{}", op.name), Span::call_site());
+        let saturating_comment = format!("Saturating {}.", op.description);
+
+        tokens.extend(quote! {
+            #[doc = #saturating_comment]
+            #[must_use]
+            #vis fn #saturating_name(self, #rhs_type) -> Self {
+                Self::new_saturating(self.get().#saturating_name(#rhs_value))
+            }
+        });
+    }
 }
 
 fn generate_cmp_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
@@ -491,65 +552,79 @@ fn generate_ops_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
     }
 }
 
-fn generate_checked_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
-    let mut block_tokens = TokenStream::new();
-    let vis = &item.vis;
+fn binop_trait_variations<B: ToTokens>(
+    trait_name_root: &str,
+    method_root: &str,
+    lhs: &impl ToTokens,
+    rhs: &impl ToTokens,
+    body: impl FnOnce(&Ident, &Ident) -> B,
+    tokens: &mut TokenStream,
+) {
+    let trait_name = Ident::new(trait_name_root, Span::call_site());
+    let trait_name_assign = Ident::new(&format!("{}Assign", trait_name_root), Span::call_site());
+    let method = Ident::new(method_root, Span::call_site());
+    let method_assign = Ident::new(&format!("{}_assign", method_root), Span::call_site());
+    let body = body(&trait_name, &method);
 
-    for op in CHECKED_OPERATORS {
-        let variants = if item.repr.signed {
-            op.signed_variants
-        } else {
-            op.unsigned_variants
-        };
-
-        if variants == NoOps {
-            continue;
-        }
-
-        let rhs = match op.rhs {
-            Some("Self") => Some({
-                let repr = &item.repr;
-                quote!(::core::primitive::#repr)
-            }),
-            Some(name) => Some({
-                let ident = Ident::new(name, Span::call_site());
-                quote!(::core::primitive::#ident)
-            }),
-            None => None,
-        };
-        let rhs_type = rhs.as_ref().map(|ty| quote!(rhs: #ty,));
-        let rhs_value = rhs.map(|_| quote!(rhs,));
-
-        let checked_name = Ident::new(&format!("checked_{}", op.name), Span::call_site());
-        let checked_comment = format!("Checked {}.", op.description);
-
-        block_tokens.extend(quote! {
-            #[doc = #checked_comment]
-            #[must_use]
-            #vis fn #checked_name(self, #rhs_type) -> ::core::option::Option<Self> {
-                self.get().#checked_name(#rhs_value).and_then(Self::new)
-            }
-        });
-
-        if variants != All {
-            continue;
-        }
-
-        let saturating_name = Ident::new(&format!("saturating_{}", op.name), Span::call_site());
-        let saturating_comment = format!("Saturating {}.", op.description);
-
-        block_tokens.extend(quote! {
-            #[doc = #saturating_comment]
-            #[must_use]
-            #vis fn #saturating_name(self, #rhs_type) -> Self {
-                Self::new_saturating(self.get().#saturating_name(#rhs_value))
-            }
-        });
-    }
-
-    let ident = &item.ident;
     tokens.extend(quote! {
-        impl #ident { #block_tokens }
+        impl ::core::ops::#trait_name<#rhs> for #lhs {
+            type Output = #lhs;
+            fn #method(self, rhs: #rhs) -> Self::Output {
+                #body
+            }
+        }
+        impl ::core::ops::#trait_name<#rhs> for &#lhs {
+            type Output = #lhs;
+            fn #method(self, rhs: #rhs) -> Self::Output {
+                <#lhs as ::core::ops::#trait_name<#rhs>>::#method(*self, rhs)
+            }
+        }
+        impl<'b> ::core::ops::#trait_name<&'b #rhs> for #lhs {
+            type Output = #lhs;
+            fn #method(self, rhs: &'b #rhs) -> Self::Output {
+                <#lhs as ::core::ops::#trait_name<#rhs>>::#method(self, *rhs)
+            }
+        }
+        impl<'a> ::core::ops::#trait_name<&'a #rhs> for &#lhs {
+            type Output = #lhs;
+            fn #method(self, rhs: &'a #rhs) -> Self::Output {
+                <#lhs as ::core::ops::#trait_name<#rhs>>::#method(*self, *rhs)
+            }
+        }
+
+        impl ::core::ops::#trait_name_assign<#rhs> for #lhs {
+            fn #method_assign(&mut self, rhs: #rhs) {
+                *self = <Self as ::core::ops::#trait_name<#rhs>>::#method(*self, rhs);
+            }
+        }
+        impl<'a> ::core::ops::#trait_name_assign<&'a #rhs> for #lhs {
+            fn #method_assign(&mut self, rhs: &'a #rhs) {
+                *self = <Self as ::core::ops::#trait_name<#rhs>>::#method(*self, *rhs);
+            }
+        }
+    });
+}
+
+fn unop_trait_variations(
+    trait_name: &impl ToTokens,
+    method: &impl ToTokens,
+    lhs: &impl ToTokens,
+    body: &impl ToTokens,
+    tokens: &mut TokenStream,
+) {
+    tokens.extend(quote! {
+        impl ::core::ops::#trait_name for #lhs {
+            type Output = #lhs;
+            fn #method(self) -> Self::Output {
+                #body
+            }
+        }
+        impl ::core::ops::#trait_name for &#lhs {
+            type Output = #lhs;
+            fn #method(self) -> Self::Output {
+                <#lhs as ::core::ops::#trait_name>::#method(*self)
+            }
+        }
     });
 }
 
@@ -703,7 +778,7 @@ fn generate_serde(item: &BoundedInteger, tokens: &mut TokenStream) {
                             ::core::format_args!(
                                 "integer out of range, expected it to be between {} and {}",
                                 Self::MIN_VALUE,
-                                Self::MAX_VALUE
+                                Self::MAX_VALUE,
                             )
                         )
                     })
@@ -788,82 +863,6 @@ struct Operator {
     description: &'static str,
     bin: bool,
     on_unsigned: bool,
-}
-
-fn binop_trait_variations<B: ToTokens>(
-    trait_name_root: &str,
-    method_root: &str,
-    lhs: &impl ToTokens,
-    rhs: &impl ToTokens,
-    body: impl FnOnce(&Ident, &Ident) -> B,
-    tokens: &mut TokenStream,
-) {
-    let trait_name = Ident::new(trait_name_root, Span::call_site());
-    let trait_name_assign = Ident::new(&format!("{}Assign", trait_name_root), Span::call_site());
-    let method = Ident::new(method_root, Span::call_site());
-    let method_assign = Ident::new(&format!("{}_assign", method_root), Span::call_site());
-    let body = body(&trait_name, &method);
-
-    tokens.extend(quote! {
-        impl ::core::ops::#trait_name<#rhs> for #lhs {
-            type Output = #lhs;
-            fn #method(self, rhs: #rhs) -> Self::Output {
-                #body
-            }
-        }
-        impl<'a> ::core::ops::#trait_name<#rhs> for &'a #lhs {
-            type Output = #lhs;
-            fn #method(self, rhs: #rhs) -> Self::Output {
-                <#lhs as ::core::ops::#trait_name<#rhs>>::#method(*self, rhs)
-            }
-        }
-        impl<'b> ::core::ops::#trait_name<&'b #rhs> for #lhs {
-            type Output = #lhs;
-            fn #method(self, rhs: &'b #rhs) -> Self::Output {
-                <#lhs as ::core::ops::#trait_name<#rhs>>::#method(self, *rhs)
-            }
-        }
-        impl<'b, 'a> ::core::ops::#trait_name<&'b #rhs> for &'a #lhs {
-            type Output = #lhs;
-            fn #method(self, rhs: &'b #rhs) -> Self::Output {
-                <#lhs as ::core::ops::#trait_name<#rhs>>::#method(*self, *rhs)
-            }
-        }
-
-        impl ::core::ops::#trait_name_assign<#rhs> for #lhs {
-            fn #method_assign(&mut self, rhs: #rhs) {
-                *self = <Self as ::core::ops::#trait_name<#rhs>>::#method(*self, rhs);
-            }
-        }
-        impl<'a> ::core::ops::#trait_name_assign<&'a #rhs> for #lhs {
-            fn #method_assign(&mut self, rhs: &'a #rhs) {
-                *self = <Self as ::core::ops::#trait_name<#rhs>>::#method(*self, *rhs);
-            }
-        }
-    });
-}
-
-fn unop_trait_variations(
-    trait_name: &impl ToTokens,
-    method: &impl ToTokens,
-    lhs: &impl ToTokens,
-    body: &impl ToTokens,
-    tokens: &mut TokenStream,
-) {
-    tokens.extend(quote! {
-        impl ::core::ops::#trait_name for #lhs {
-            type Output = #lhs;
-            fn #method(self) -> Self::Output {
-                #body
-            }
-        }
-        impl<'a> ::core::ops::#trait_name for &'a #lhs {
-            type Output = #lhs;
-            fn #method(self) -> Self::Output {
-                <#lhs as ::core::ops::#trait_name>::#method(*self)
-            }
-        }
-    });
 }
 
 #[cfg(test)]
