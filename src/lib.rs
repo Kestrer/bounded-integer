@@ -45,7 +45,10 @@ macro_rules! import_macro {
         ///
         /// With a struct:
         /// ```
-        #[cfg_attr(feature = "step_trait", doc = "# #![feature(step_trait, step_trait_ext)]")]
+        #[cfg_attr(
+            feature = "step_trait",
+            doc = "# #![feature(step_trait, step_trait_ext)]"
+        )]
         /// # mod force_item_scope {
         /// # use bounded_integer::bounded_integer;
         /// bounded_integer! {
@@ -63,7 +66,10 @@ macro_rules! import_macro {
         ///
         /// With an enum:
         /// ```
-        #[cfg_attr(feature = "step_trait", doc = "# #![feature(step_trait, step_trait_ext)]")]
+        #[cfg_attr(
+            feature = "step_trait",
+            doc = "# #![feature(step_trait, step_trait_ext)]"
+        )]
         /// # mod force_item_scope {
         /// # use bounded_integer::bounded_integer;
         /// bounded_integer! {
@@ -87,7 +93,10 @@ macro_rules! import_macro {
         /// have normally been a `u8`.
         ///
         /// ```
-        #[cfg_attr(feature = "step_trait", doc = "# #![feature(step_trait, step_trait_ext)]")]
+        #[cfg_attr(
+            feature = "step_trait",
+            doc = "# #![feature(step_trait, step_trait_ext)]"
+        )]
         /// # mod force_item_scope {
         /// # use bounded_integer::bounded_integer;
         /// bounded_integer! {

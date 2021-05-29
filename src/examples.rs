@@ -112,17 +112,20 @@ mod tests {
     test_iter!(test_enum_iter, BoundedEnum);
 
     #[allow(unused_imports)]
-    #[test]
-    fn various_bounded_integers() {
+    mod all_below_zero {
+        use super::bounded_integer;
         bounded_integer! {
             #[bounded_integer = crate]
-            struct AllBelowZeroStruct { -400..=-203 }
+            struct Struct { -400..=-203 }
         }
         bounded_integer! {
             #[bounded_integer = crate]
-            enum AllBelowZeroEnum { -500..=-483 }
+            enum Enum { -500..=-483 }
         }
+    }
 
+    mod correct_reprs {
+        use super::bounded_integer;
         bounded_integer! {
             #[bounded_integer = crate]
             struct ByteStruct { 0..256 }

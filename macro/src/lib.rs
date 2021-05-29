@@ -348,9 +348,9 @@ impl Parse for Repr {
         let span = name.span();
         let s = name.to_string();
 
-        let (size, signed) = if let Some(size) = s.strip_prefix("i") {
+        let (size, signed) = if let Some(size) = s.strip_prefix('i') {
             (size, true)
-        } else if let Some(size) = s.strip_prefix("u") {
+        } else if let Some(size) = s.strip_prefix('u') {
             (size, false)
         } else {
             return Err(Error::new(span, "Repr must a primitive integer type"));
@@ -474,7 +474,7 @@ fn eval_expr(expr: &Expr) -> syn::Result<BigInt> {
             match op {
                 UnOp::Not(_) => !expr,
                 UnOp::Neg(_) => -expr,
-                _ => {
+                UnOp::Deref(_) => {
                     return Err(Error::new_spanned(op, "unary operator must be ! or -"));
                 }
             }
