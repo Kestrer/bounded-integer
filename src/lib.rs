@@ -9,6 +9,7 @@
 //!
 //! # Features
 //!
+//! - `macro`: Enable the [`bounded_integer!`] macro.
 //! - `serde`: Implement `Serialize` and `Deserialize` for the bounded integers, making sure all
 //! values will never be out of bounds.
 //! - `step_trait`: Implement the unstable [`core::iter::Step`] trait which allows the bounded
@@ -18,6 +19,7 @@
     all(feature = "examples", feature = "step_trait"),
     feature(step_trait, step_trait_ext)
 )]
+#![cfg_attr(doc_cfg, feature(doc_cfg))]
 
 #[doc(hidden)]
 pub mod __private {
@@ -30,4 +32,112 @@ pub mod __private {
 #[cfg(feature = "examples")]
 pub mod examples;
 
-pub use bounded_integer_macro::bounded_integer;
+#[cfg(feature = "macro")]
+macro_rules! import_macro {
+    ($name:ident) => {
+        /// Generate a bounded integer type.
+        ///
+        /// It takes in single struct or enum, with the content being a bounded range expression, whose
+        /// upper bound can be inclusive (`x..=y`) or exclusive (`x..y`). The attributes and visibility
+        /// (e.g. `pub`) of the type are forwarded directly to the output type.
+        ///
+        /// # Examples
+        ///
+        /// With a struct:
+        /// ```
+        /// # #![feature(step_trait, step_trait_ext)]
+        /// # mod force_item_scope {
+        /// # use bounded_integer::bounded_integer;
+        /// bounded_integer! {
+        ///     pub struct S { -3..2 }
+        /// }
+        /// # }
+        /// ```
+        /// The generated item should look like this (i8 is chosen as it is the smallest repr):
+        /// ```
+        /// #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+        /// #[repr(transparent)]
+        /// pub struct S(i8);
+        /// ```
+        /// And the methods will ensure that `-3 <= S.0 < 2`.
+        ///
+        /// With an enum:
+        /// ```
+        /// # #![feature(step_trait, step_trait_ext)]
+        /// # mod force_item_scope {
+        /// # use bounded_integer::bounded_integer;
+        /// bounded_integer! {
+        ///     pub enum S { 5..=7 }
+        /// }
+        /// # }
+        /// ```
+        /// The generated item should look like this (u8 is chosen as it is the smallest repr):
+        /// ```
+        /// #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+        /// #[repr(u8)]
+        /// pub enum S {
+        ///     P5 = 5, P6, P7
+        /// }
+        /// ```
+        ///
+        /// # Custom repr
+        ///
+        /// The item can have a `repr` attribute to specify how it will be represented in memory, which can
+        /// be a `u*` or `i*` type. In this example we override the `repr` to be a `u16`, when it would
+        /// have normally been a `u8`.
+        ///
+        /// ```
+        /// # #![feature(step_trait, step_trait_ext)]
+        /// # mod force_item_scope {
+        /// # use bounded_integer::bounded_integer;
+        /// bounded_integer! {
+        ///     #[repr(u16)]
+        ///     pub struct S { 2..5 }
+        /// }
+        /// # }
+        /// ```
+        /// The generated item should look like this:
+        /// ```
+        /// #[derive(Debug, Hash, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+        /// #[repr(transparent)]
+        /// pub struct S(u16);
+        /// ```
+        ///
+        /// # Custom path to bounded integer
+        ///
+        /// `bounded-integer` will assume that it is located at `::bounded_integer` by default. You can
+        /// override this by adding a `bounded_integer` attribute to your item. For example if
+        /// `bounded_integer` is instead located at `path::to::bounded_integer`:
+        ///
+        /// ```ignore
+        /// # mod force_item_scope {
+        /// # use bounded_integer::bounded_integer;
+        /// bounded_integer! {
+        ///     #[repr(i8)]
+        ///     #[bounded_integer = path::to::bounded_integer]
+        ///     pub struct S { 5..7 }
+        /// }
+        /// # }
+        /// ```
+        ///
+        /// # Limitations
+        ///
+        /// - Both bounds of ranges must be closed and a simple const expression involving only literals and
+        /// the following operators:
+        ///     - Negation (`-x`)
+        ///     - Addition (`x+y`), subtraction (`x-y`), multiplication (`x*y`), division (`x/y`) and
+        ///     remainder (`x%y`).
+        ///     - Bitwise not (`!x`), XOR (`x^y`), AND (`x&y`) and OR (`x|y`).
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "macro")))]
+        pub use bounded_integer_macro::$name as bounded_integer;
+    };
+}
+
+#[cfg(all(feature = "macro", not(feature = "serde"), not(feature = "step_trait")))]
+import_macro!(not_serde_not_step_trait);
+#[cfg(all(feature = "macro", not(feature = "serde"), feature = "step_trait"))]
+import_macro!(not_serde_step_trait);
+#[cfg(all(feature = "macro", feature = "serde", not(feature = "step_trait")))]
+import_macro!(serde_not_step_trait);
+#[cfg(all(feature = "macro", feature = "serde", feature = "step_trait"))]
+import_macro!(serde_step_trait);

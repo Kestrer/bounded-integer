@@ -10,17 +10,20 @@ readme = "README.md"
 edition = "2018"
 
 [dependencies]
-bounded-integer-macro = { path = "./macro", version = "=0.4.0" }
+bounded-integer-macro = { path = "./macro", version = "=0.4.0", optional = true }
 
 serde_crate = { package = "serde", version = "1.0.124", default-features = false, optional = true }
 
 [features]
-examples = ["bounded-integer-macro/generate_tests"]
-serde = ["serde_crate", "bounded-integer-macro/serde"]
-step_trait = ["bounded-integer-macro/step_trait"]
+macro = ["bounded-integer-macro"]
+examples = ["macro", "bounded-integer-macro/generate_tests"]
+
+serde = ["serde_crate"]
+step_trait = []
 
 [package.metadata.docs.rs]
-features = ["examples"]
+all-features = true
+rustdoc-args = ["--cfg", "doc_cfg"]
 
 [workspace]
 members = ["macro"]

@@ -6,7 +6,13 @@ use num_bigint::BigInt;
 
 use crate::{BoundedInteger, Kind};
 
-pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
+#[derive(Clone, Copy)]
+pub(crate) struct Features {
+    pub(crate) serde: bool,
+    pub(crate) step_trait: bool,
+}
+
+pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream, features: Features) {
     generate_access_checker(item, tokens);
     generate_item(item, tokens);
     generate_impl(item, tokens);
@@ -16,10 +22,10 @@ pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
     generate_ops_traits(item, tokens);
     generate_cmp_traits(item, tokens);
     generate_as_ref_borrow(item, tokens);
-    generate_iter_traits(item, tokens);
+    generate_iter_traits(item, tokens, features);
     generate_fmt_traits(item, tokens);
     generate_to_primitive_traits(item, tokens);
-    if cfg!(feature = "serde") {
+    if features.serde {
         generate_serde(item, tokens);
     }
 
@@ -750,7 +756,7 @@ fn generate_as_ref_borrow(item: &BoundedInteger, tokens: &mut TokenStream) {
     });
 }
 
-fn generate_iter_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
+fn generate_iter_traits(item: &BoundedInteger, tokens: &mut TokenStream, features: Features) {
     let ident = &item.ident;
     let repr = &item.repr;
 
@@ -812,8 +818,7 @@ fn generate_iter_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
             }
         });
     }
-    #[cfg(feature = "step_trait")]
-    {
+    if features.step_trait {
         tokens.extend(quote! {
             unsafe impl ::core::iter::Step for #ident {
                 #[inline]

@@ -2,7 +2,7 @@
 name = "bounded-integer-macro"
 version = "0.4.0"
 authors = ["Kestrer <kestrer.dev@gmail.com>"]
-description = "Bounded integers proc macro"
+description = "Proc macro for `bounded-integer`. Do not use directly."
 keywords = ["bounded", "integer", "macro", "refinement"]
 license = "ISC"
 repository = "https://github.com/Kestrer/bounded-integer"
@@ -13,8 +13,6 @@ edition = "2018"
 proc-macro = true
 
 [features]
-serde = []
-step_trait = []
 # Internal-only feature, not public API
 generate_tests = []
 
