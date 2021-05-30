@@ -22,6 +22,7 @@ pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream, features
     generate_ops_traits(item, tokens);
     generate_cmp_traits(item, tokens);
     generate_as_ref_borrow(item, tokens);
+    generate_default(item, tokens);
     generate_iter_traits(item, tokens, features);
     generate_fmt_traits(item, tokens);
     generate_to_primitive_traits(item, tokens);
@@ -752,6 +753,20 @@ fn generate_as_ref_borrow(item: &BoundedInteger, tokens: &mut TokenStream) {
     });
 }
 
+fn generate_default(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let ident = &item.ident;
+
+    if item.range.contains(&BigInt::from(0)) {
+        tokens.extend(quote! {
+            impl ::core::default::Default for #ident {
+                fn default() -> Self {
+                    unsafe { Self::new_unchecked(0) }
+                }
+            }
+        });
+    }
+}
+
 fn generate_iter_traits(item: &BoundedInteger, tokens: &mut TokenStream, features: Features) {
     let ident = &item.ident;
     let repr = &item.repr;
@@ -762,7 +777,7 @@ fn generate_iter_traits(item: &BoundedInteger, tokens: &mut TokenStream, feature
                 fn sum<I: ::core::iter::Iterator<Item = Self>>(iter: I) -> Self {
                     ::core::iter::Iterator::fold(
                         iter,
-                        unsafe { Self::new_unchecked(0) },
+                        ::core::default::Default::default(),
                         ::core::ops::Add::add,
                     )
                 }

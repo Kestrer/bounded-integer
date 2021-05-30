@@ -42,6 +42,8 @@ mod tests {
                 assert!(!$bounded::in_range(-9));
                 assert!($bounded::in_range(7));
                 assert!(!$bounded::in_range(8));
+
+                assert_eq!($bounded::default().get(), 0);
             }
         };
     }
