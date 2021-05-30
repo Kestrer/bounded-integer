@@ -434,13 +434,11 @@ fn generate_checked_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
         let checked_name = Ident::new(&format!("checked_{}", op.name), Span::call_site());
         let checked_comment = format!("Checked {}.", op.description.trim());
 
-        let const_token = op.is_const.then(|| Token![const](Span::call_site()));
-
         tokens.extend(quote! {
             #[doc = #checked_comment]
             #[must_use]
             #[inline]
-            #vis #const_token fn #checked_name(self, #rhs_type) -> ::core::option::Option<Self> {
+            #vis const fn #checked_name(self, #rhs_type) -> ::core::option::Option<Self> {
                 match self.get().#checked_name(#rhs_value) {
                     ::core::option::Option::Some(val) => Self::new(val),
                     ::core::option::Option::None => ::core::option::Option::None,
@@ -461,7 +459,7 @@ fn generate_checked_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
             #[doc = #saturating_comment]
             #[must_use]
             #[inline]
-            #vis #const_token fn #saturating_name(self, #rhs_type) -> Self {
+            #vis const fn #saturating_name(self, #rhs_type) -> Self {
                 Self::new_saturating(self.get().#saturating_name(#rhs_value))
             }
         });
@@ -473,7 +471,6 @@ struct CheckedOperator {
     description: &'static str,
     rhs: Option<&'static str>,
     variants: OpVariants,
-    is_const: bool,
 }
 
 #[derive(Eq, PartialEq, Clone, Copy)]
@@ -495,7 +492,7 @@ macro_rules! tokens_or {
 macro_rules! checked_operators {
     ($(
         #[doc = $description:literal]
-        $(const $(@@@@ $const:ident)?)? fn $name:ident($($rhs:ty)?)
+        fn $name:ident($($rhs:ty)?)
         $variants:ident
     ,)*) => {
         [$(
@@ -504,23 +501,22 @@ macro_rules! checked_operators {
                 description: $description,
                 rhs: tokens_or!(($(Some(stringify!($rhs)))?) (None)),
                 variants: OpVariants::$variants,
-                is_const: tokens_or!(($(true $($const)?)?) (false)),
             }
         ,)*]
     }
 }
 
 const CHECKED_OPERATORS: &[CheckedOperator] = &checked_operators! {
-    /** integer addition       */ const fn add        (Self) All             ,
-    /** integer subtraction    */ const fn sub        (Self) All             ,
-    /** integer multiplication */ const fn mul        (Self) All             ,
-    /** integer division       */       fn div        (Self) NoSaturating    ,
-    /** Euclidean division     */       fn div_euclid (Self) NoSaturating    ,
-    /** integer remainder      */       fn rem        (Self) NoSaturating    ,
-    /** Euclidean remainder    */       fn rem_euclid (Self) NoSaturating    ,
-    /** negation               */ const fn neg        (    ) SignedSaturating,
-    /** absolute value         */ const fn abs        (    ) Signed          ,
-    /** exponentiation         */ const fn pow        (u32 ) All             ,
+    /** integer addition       */ fn add        (Self) All             ,
+    /** integer subtraction    */ fn sub        (Self) All             ,
+    /** integer multiplication */ fn mul        (Self) All             ,
+    /** integer division       */ fn div        (Self) NoSaturating    ,
+    /** Euclidean division     */ fn div_euclid (Self) NoSaturating    ,
+    /** integer remainder      */ fn rem        (Self) NoSaturating    ,
+    /** Euclidean remainder    */ fn rem_euclid (Self) NoSaturating    ,
+    /** negation               */ fn neg        (    ) SignedSaturating,
+    /** absolute value         */ fn abs        (    ) Signed          ,
+    /** exponentiation         */ fn pow        (u32 ) All             ,
 };
 
 fn generate_ops_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
@@ -776,19 +772,22 @@ fn generate_iter_traits(item: &BoundedInteger, tokens: &mut TokenStream, feature
                     ::core::iter::Iterator::sum(::core::iter::Iterator::copied(iter))
                 }
             }
-
-            impl ::core::iter::Sum<#ident> for ::core::primitive::#repr {
-                fn sum<I: ::core::iter::Iterator<Item = #ident>>(iter: I) -> Self {
-                    ::core::iter::Iterator::sum(::core::iter::Iterator::map(iter, #ident::get))
-                }
-            }
-            impl<'a> ::core::iter::Sum<&'a #ident> for ::core::primitive::#repr {
-                fn sum<I: ::core::iter::Iterator<Item = &'a #ident>>(iter: I) -> Self {
-                    ::core::iter::Iterator::sum(::core::iter::Iterator::copied(iter))
-                }
-            }
         });
     }
+
+    tokens.extend(quote! {
+        impl ::core::iter::Sum<#ident> for ::core::primitive::#repr {
+            fn sum<I: ::core::iter::Iterator<Item = #ident>>(iter: I) -> Self {
+                ::core::iter::Iterator::sum(::core::iter::Iterator::map(iter, #ident::get))
+            }
+        }
+        impl<'a> ::core::iter::Sum<&'a #ident> for ::core::primitive::#repr {
+            fn sum<I: ::core::iter::Iterator<Item = &'a #ident>>(iter: I) -> Self {
+                ::core::iter::Iterator::sum(::core::iter::Iterator::copied(iter))
+            }
+        }
+    });
+
     if item.range.contains(&BigInt::from(1)) {
         tokens.extend(quote! {
             impl ::core::iter::Product for #ident {
@@ -805,19 +804,22 @@ fn generate_iter_traits(item: &BoundedInteger, tokens: &mut TokenStream, feature
                     ::core::iter::Iterator::product(::core::iter::Iterator::copied(iter))
                 }
             }
-
-            impl ::core::iter::Product<#ident> for ::core::primitive::#repr {
-                fn product<I: ::core::iter::Iterator<Item = #ident>>(iter: I) -> Self {
-                    ::core::iter::Iterator::product(::core::iter::Iterator::map(iter, #ident::get))
-                }
-            }
-            impl<'a> ::core::iter::Product<&'a #ident> for ::core::primitive::#repr {
-                fn product<I: ::core::iter::Iterator<Item = &'a #ident>>(iter: I) -> Self {
-                    ::core::iter::Iterator::product(::core::iter::Iterator::copied(iter))
-                }
-            }
         });
     }
+
+    tokens.extend(quote! {
+        impl ::core::iter::Product<#ident> for ::core::primitive::#repr {
+            fn product<I: ::core::iter::Iterator<Item = #ident>>(iter: I) -> Self {
+                ::core::iter::Iterator::product(::core::iter::Iterator::map(iter, #ident::get))
+            }
+        }
+        impl<'a> ::core::iter::Product<&'a #ident> for ::core::primitive::#repr {
+            fn product<I: ::core::iter::Iterator<Item = &'a #ident>>(iter: I) -> Self {
+                ::core::iter::Iterator::product(::core::iter::Iterator::copied(iter))
+            }
+        }
+    });
+
     if features.step_trait {
         tokens.extend(quote! {
             unsafe impl ::core::iter::Step for #ident {
