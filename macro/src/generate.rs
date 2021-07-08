@@ -837,7 +837,7 @@ fn generate_iter_traits(item: &BoundedInteger, tokens: &mut TokenStream, feature
 
     if features.step_trait {
         tokens.extend(quote! {
-            unsafe impl ::core::iter::Step for #ident {
+            impl ::core::iter::Step for #ident {
                 #[inline]
                 fn steps_between(start: &Self, end: &Self) -> ::core::option::Option<::core::primitive::usize> {
                     ::core::iter::Step::steps_between(&start.get(), &end.get())

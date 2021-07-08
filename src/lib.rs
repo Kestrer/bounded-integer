@@ -13,10 +13,10 @@
 //! - `types`: Enable the bounded integer types that use const generics.
 //! - `serde`: Implement `Serialize` and `Deserialize` for the bounded integers, making sure all
 //! values will never be out of bounds.
-//! - `step_trait`: Implement the unstable [`core::iter::Step`] trait which allows the bounded
+//! - `step_trait`: Implement the [`core::iter::Step`] trait which allows the bounded
 //! integers to be easily used in ranges. This will require you to use nightly and place
-//! `#![feature(step_trait, step_trait_ext)]` in your crate root.
-#![cfg_attr(feature = "step_trait", feature(step_trait, step_trait_ext))]
+//! `#![feature(step_trait)]` in your crate root.
+#![cfg_attr(feature = "step_trait", feature(step_trait))]
 #![cfg_attr(doc_cfg, feature(doc_cfg))]
 #![no_std]
 
