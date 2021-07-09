@@ -1,0 +1,119 @@
+{
+    "on": ["push", "pull_request"],
+    "name": "CI",
+    "jobs": {
+        "clippy": {
+            "name": "Clippy",
+            "runs-on": "ubuntu-latest",
+            "steps": [
+                { "uses": "actions/checkout@v2" },
+                {
+                    "uses": "actions-rs/toolchain@v1",
+                    "with": {
+                        "toolchain": "stable",
+                        "profile": "minimal",
+                        "components": "clippy",
+                        "override": true,
+                    },
+                },
+                {
+                    "uses": "actions-rs/cargo@v1",
+                    "with": {
+                        "command": "clippy",
+                        "args": "--workspace --all-targets --features types,examples,serde -- --D warnings",
+                    },
+                },
+            ],
+        },
+        "test": {
+            "name": "Test",
+            "runs-on": "ubuntu-latest",
+            "steps": [
+                { "uses": "actions/checkout@v2" },
+                {
+                    "uses": "actions-rs/toolchain@v1",
+                    "with": {
+                        "profile": "minimal",
+                        "toolchain": "stable",
+                        "override": true,
+                    },
+                },
+                {
+                    "uses": "actions-rs/cargo@v1",
+                    "with": {
+                        "command": "test",
+                        "args": "--workspace --features types,examples,serde",
+                    },
+                },
+            ],
+        },
+        "clippy_nightly": {
+            "name": "Clippy Nightly",
+            "runs-on": "ubuntu-latest",
+            "steps": [
+                { "uses": "actions/checkout@v2" },
+                {
+                    "uses": "actions-rs/toolchain@v1",
+                    "with": {
+                        "toolchain": "nightly",
+                        "profile": "minimal",
+                        "components": "clippy",
+                        "override": true,
+                    },
+                },
+                {
+                    "uses": "actions-rs/cargo@v1",
+                    "with": {
+                        "command": "clippy",
+                        "args": "--workspace --all-targets --features types,examples,serde,step_trait -- --D warnings",
+                    },
+                },
+            ],
+        },
+        "test_nightly": {
+            "name": "Test Nightly",
+            "runs-on": "ubuntu-latest",
+            "steps": [
+                { "uses": "actions/checkout@v2" },
+                {
+                    "uses": "actions-rs/toolchain@v1",
+                    "with": {
+                        "profile": "minimal",
+                        "toolchain": "nightly",
+                        "override": true,
+                    },
+                },
+                {
+                    "uses": "actions-rs/cargo@v1",
+                    "with": {
+                        "command": "test",
+                        "args": "--workspace --features types,examples,serde,step_trait",
+                    },
+                },
+            ],
+        },
+        "fmt": {
+            "name": "Rustfmt",
+            "runs-on": "ubuntu-latest",
+            "steps": [
+                { "uses": "actions/checkout@v2" },
+                {
+                    "uses": "actions-rs/toolchain@v1",
+                    "with": {
+                        "toolchain": "stable",
+                        "profile": "minimal",
+                        "components": "rustfmt",
+                        "override": true,
+                    },
+                },
+                {
+                    "uses": "actions-rs/cargo@v1",
+                    "with": {
+                        "command": "fmt",
+                        "args": "--all -- --check",
+                    },
+                },
+            ],
+        },
+    },
+}
