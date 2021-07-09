@@ -777,7 +777,7 @@ fn generate_iter_traits(item: &BoundedInteger, tokens: &mut TokenStream, feature
                 fn sum<I: ::core::iter::Iterator<Item = Self>>(iter: I) -> Self {
                     ::core::iter::Iterator::fold(
                         iter,
-                        ::core::default::Default::default(),
+                        <Self as ::core::default::Default>::default(),
                         ::core::ops::Add::add,
                     )
                 }
