@@ -611,7 +611,7 @@ macro_rules! define_bounded_integers {
         }
 
         #[cfg(feature = "step_trait")]
-        unsafe impl<const MIN: Inner, const MAX: Inner> iter::Step for Bounded<MIN, MAX> {
+        impl<const MIN: Inner, const MAX: Inner> iter::Step for Bounded<MIN, MAX> {
             #[inline]
             fn steps_between(start: &Self, end: &Self) -> Option<usize> {
                 iter::Step::steps_between(&start.get(), &end.get())
