@@ -1,6 +1,6 @@
 #![no_implicit_prelude]
 #![no_std]
-#![cfg_attr(feature = "step_trait", feature(step_trait, step_trait_ext))]
+#![cfg_attr(feature = "step_trait", feature(step_trait))]
 #![cfg(feature = "macro")]
 #![forbid(clippy::pedantic)]
 
