@@ -1,18 +1,66 @@
 # Bounded Integer
 
-Note: This is now the primary repo for bounded-integer.
-
 [![Crate version][crate-badge]][crate]
-[![Build status][travis-badge]][travis]
+[![docs.rs][docsrs-badge]][docsrs]
+[![checks][checks-badge]][checks]
 
 [crate]: https://crates.io/crates/bounded-integer
-[travis]: https://travis-ci.org/Kestrer/bounded-integer
 [crate-badge]: https://img.shields.io/crates/v/bounded-integer.svg
-[travis-badge]: https://img.shields.io/travis/Kestrer/bounded-integer/master.svg
+[docsrs]: https://docs.rs/bounded-integer
+[docsrs-badge]: https://img.shields.io/badge/docs.rs-bounded--integer-informational
+[checks]: https://github.com/Kestrer/bounded-integer/actions?query=workflow%3ACI+branch%3Amaster
+[checks-badge]: https://github.com/Kestrer/bounded-integer/workflows/CI/badge.svg
 
-Bounded integers for Rust.
+This crate provides two types of bounded integer for use in Rust.
 
-[Documentation](https://docs.rs/bounded-integer)
+## Macro-generated bounded integers
+
+The [`bounded_integer!`] macro allows you to define your own bounded integer type, given a
+specific range it inhabits. For example:
+
+```rust
+bounded_integer! {
+    struct MyInteger { 0..8 }
+}
+let num = MyInteger::new(5).unwrap();
+assert_eq!(num, 5);
+```
+
+This macro supports both `struct`s and `enum`s. See the [`examples`] module for the
+documentation of generated types.
+
+## Const generics-based bounded integers
+
+You can also create ad-hoc bounded integers via types in this library that use const generics,
+for example:
+
+```rust
+let num = <BoundedU8<0, 7>>::new(5).unwrap();
+assert_eq!(num, 5);
+```
+
+These integers are shorter to use as they don't require a type declaration or explicit name,
+and they interoperate better with other integers that have different ranges. However due to the
+limits of const generics, they do not implement some traits like `Default`.
+
+## `no_std`
+
+All the integers in this crate depend only on libcore and so work in `#![no_std]` environments.
+
+## Crate Features
+
+By default, no crate features are enabled.
+- `macro`: Enable the [`bounded_integer!`] macro.
+- `types`: Enable the bounded integer types that use const generics.
+- `serde`: Implement `Serialize` and `Deserialize` for the bounded integers, making sure all
+values will never be out of bounds.
+- `step_trait`: Implement the [`Step`] trait which allows the bounded integers to be easily used
+in ranges. This will require you to use nightly and place `#![feature(step_trait)]` in your
+crate root if you use the macro.
+
+[`bounded_integer!`]: https://docs.rs/bounded-integer/*/bounded_integer/macro.bounded_integer.html
+[`examples`]: https://docs.rs/bounded-integer/*/bounded_integer/examples/
+[`Step`]: https://doc.rust-lang.org/nightly/core/iter/trait.Step.html
 
 ## License
 
