@@ -20,7 +20,7 @@
                     "uses": "actions-rs/cargo@v1",
                     "with": {
                         "command": "clippy",
-                        "args": "--workspace --all-targets --features types,examples,serde -- --D warnings",
+                        "args": "--workspace --all-targets --features types,__examples,serde -- --D warnings",
                     },
                 },
             ],
@@ -42,7 +42,7 @@
                     "uses": "actions-rs/cargo@v1",
                     "with": {
                         "command": "test",
-                        "args": "--workspace --features types,examples,serde",
+                        "args": "--workspace --features types,__examples,serde",
                     },
                 },
             ],
@@ -65,7 +65,7 @@
                     "uses": "actions-rs/cargo@v1",
                     "with": {
                         "command": "clippy",
-                        "args": "--workspace --all-targets --features types,examples,serde,step_trait -- --D warnings",
+                        "args": "--workspace --all-targets --features types,__examples,serde,step_trait -- --D warnings",
                     },
                 },
             ],
@@ -87,7 +87,7 @@
                     "uses": "actions-rs/cargo@v1",
                     "with": {
                         "command": "test",
-                        "args": "--workspace --features types,examples,serde,step_trait",
+                        "args": "--workspace --features types,__examples,serde,step_trait",
                     },
                 },
             ],
