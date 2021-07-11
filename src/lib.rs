@@ -60,9 +60,6 @@
 #![cfg_attr(doc_cfg, feature(doc_cfg))]
 #![no_std]
 
-#[cfg(feature = "serde")]
-extern crate serde_crate as serde;
-
 #[cfg(feature = "types")]
 mod types;
 #[cfg(feature = "types")]
@@ -72,7 +69,7 @@ pub use types::*;
 #[cfg(feature = "macro")]
 pub mod __private {
     #[cfg(feature = "serde")]
-    pub use serde_crate as serde;
+    pub use ::serde;
 
     #[cfg(all(not(feature = "serde"), not(feature = "step_trait")))]
     pub use bounded_integer_macro::not_serde_not_step_trait as proc_macro;
