@@ -461,7 +461,7 @@ fn eval_expr(expr: &Expr) -> syn::Result<BigInt> {
             }
         },
         Expr::Unary(ExprUnary { op, expr, .. }) => {
-            let expr = eval_expr(&expr)?;
+            let expr = eval_expr(expr)?;
             match op {
                 UnOp::Not(_) => !expr,
                 UnOp::Neg(_) => -expr,
@@ -473,8 +473,8 @@ fn eval_expr(expr: &Expr) -> syn::Result<BigInt> {
         Expr::Binary(ExprBinary {
             left, op, right, ..
         }) => {
-            let left = eval_expr(&left)?;
-            let right = eval_expr(&right)?;
+            let left = eval_expr(left)?;
+            let right = eval_expr(right)?;
             match op {
                 BinOp::Add(_) => left + right,
                 BinOp::Sub(_) => left - right,
