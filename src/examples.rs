@@ -15,7 +15,6 @@ bounded_integer! {
     ///     pub struct BoundedStruct { -8..8 }
     /// }
     /// ```
-    #[bounded_integer = crate]
     pub struct BoundedStruct { -8..8 }
 }
 
@@ -30,7 +29,6 @@ bounded_integer! {
     ///     pub enum BoundedEnum { -8..8 }
     /// }
     /// ```
-    #[bounded_integer = crate]
     pub enum BoundedEnum { -8..8 }
 }
 
@@ -127,11 +125,9 @@ mod tests {
     mod all_below_zero {
         use super::bounded_integer;
         bounded_integer! {
-            #[bounded_integer = crate]
             struct Struct { -400..=-203 }
         }
         bounded_integer! {
-            #[bounded_integer = crate]
             enum Enum { -500..=-483 }
         }
     }
@@ -139,23 +135,19 @@ mod tests {
     mod correct_reprs {
         use super::bounded_integer;
         bounded_integer! {
-            #[bounded_integer = crate]
             struct ByteStruct { 0..256 }
         }
         const _: u8 = ByteStruct::MIN_VALUE;
         bounded_integer! {
-            #[bounded_integer = crate]
             enum ByteEnum { 0..256 }
         }
         const _: u8 = ByteEnum::MIN_VALUE;
 
         bounded_integer! {
-            #[bounded_integer = crate]
             struct SignedByteStruct { -128..128 }
         }
         const _: i8 = SignedByteStruct::MIN_VALUE;
         bounded_integer! {
-            #[bounded_integer = crate]
             struct SignedByteEnum { -128..128 }
         }
         const _: i8 = SignedByteEnum::MIN_VALUE;

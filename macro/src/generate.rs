@@ -13,7 +13,6 @@ pub(crate) struct Features {
 }
 
 pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream, features: Features) {
-    generate_access_checker(item, tokens);
     generate_item(item, tokens);
     generate_impl(item, tokens);
 
@@ -33,11 +32,6 @@ pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream, features
     if cfg!(feature = "generate_tests") {
         generate_tests(item, tokens);
     }
-}
-
-fn generate_access_checker(item: &BoundedInteger, tokens: &mut TokenStream) {
-    let crate_path = &item.crate_path;
-    tokens.extend(quote!(const _: () = #crate_path::__private::HAS_ACCESS_TO_CRATE;));
 }
 
 fn generate_item(item: &BoundedInteger, tokens: &mut TokenStream) {
@@ -1122,7 +1116,7 @@ mod tests {
         input: TokenStream,
         expected: TokenStream,
     ) {
-        let item = match parse2::<BoundedInteger>(input.clone()) {
+        let item = match parse2::<BoundedInteger>(quote!([::path] #input)) {
             Ok(item) => item,
             Err(e) => panic!("Failed to parse '{}': {}", input.to_string(), e),
         };

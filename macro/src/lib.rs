@@ -1,4 +1,6 @@
 //! A macro for generating bounded integer structs and enums.
+//!
+//! This crate is unstable and must not be used directly.
 #![warn(clippy::pedantic, rust_2018_idioms, unused_qualifications)]
 
 use std::borrow::Borrow;
@@ -7,11 +9,11 @@ use std::convert::TryInto;
 use std::fmt::{self, Display, Formatter};
 use std::ops::RangeInclusive;
 
-use proc_macro2::{Ident, Literal, Span, TokenStream};
+use proc_macro2::{Group, Ident, Literal, Span, TokenStream};
 use quote::{quote, ToTokens, TokenStreamExt as _};
-use syn::parse::{self, Parse, ParseStream, Parser};
+use syn::parse::{self, Parse, ParseStream};
 use syn::{braced, parse_macro_input, token::Brace, Token};
-use syn::{Attribute, Error, Expr, Path, PathArguments, PathSegment, Visibility};
+use syn::{Attribute, Error, Expr, PathArguments, PathSegment, Visibility};
 use syn::{BinOp, ExprBinary, ExprRange, ExprUnary, RangeLimits, UnOp};
 use syn::{ExprGroup, ExprParen};
 use syn::{ExprLit, Lit};
@@ -99,8 +101,8 @@ macro_rules! signed {
 }
 
 struct BoundedInteger {
-    attrs: Vec<Attribute>,
     crate_path: TokenStream,
+    attrs: Vec<Attribute>,
     repr: Repr,
     vis: Visibility,
     kind: Kind,
@@ -111,25 +113,14 @@ struct BoundedInteger {
 
 impl Parse for BoundedInteger {
     fn parse(input: ParseStream<'_>) -> parse::Result<Self> {
+        let crate_path = input.parse::<Group>()?.stream();
+
         let mut attrs = input.call(Attribute::parse_outer)?;
 
         let repr_pos = attrs.iter().position(|attr| attr.path.is_ident("repr"));
         let repr = repr_pos
             .map(|pos| attrs.remove(pos).parse_args::<Repr>())
             .transpose()?;
-
-        let crate_path = attrs
-            .iter()
-            .position(|attr| attr.path.is_ident("bounded_integer"))
-            .map(|pos| {
-                (|input: ParseStream<'_>| {
-                    input.parse::<Token![=]>()?;
-                    input.parse::<Path>()
-                })
-                .parse2(attrs.remove(pos).tokens)
-            })
-            .transpose()?
-            .map_or_else(|| quote!(::bounded_integer), Path::into_token_stream);
 
         let vis: Visibility = input.parse()?;
 
@@ -195,8 +186,8 @@ impl Parse for BoundedInteger {
         };
 
         Ok(Self {
-            attrs,
             crate_path,
+            attrs,
             repr,
             vis,
             kind,
