@@ -1,10 +1,3 @@
-macro_rules! calculated_doc {
-    ($(#[doc = $doc:expr])* - $($tt:tt)*) => {
-        $(#[doc = $doc])*
-        $($tt)*
-    };
-}
-
 macro_rules! bin_op_variations {
     ([$($generics:tt)*] $lhs:ty, $rhs:ty, $op:ident::$method:ident/$op_assign:ident::$method_assign:ident) => {
         impl<$($generics)*> $op<$rhs> for &$lhs {
@@ -153,16 +146,13 @@ macro_rules! define_bounded_integers {
 
         type Inner = core::primitive::$inner;
 
-        calculated_doc! {
-            /// An
-            #[doc = concat!("[`", stringify!($inner), "`]")]
-            /// constrained to be in the range `MIN..=MAX`.
-            -
-            #[cfg_attr(doc_cfg, doc(cfg(feature = "types")))]
-            #[repr(transparent)]
-            #[derive(Debug, Hash, Clone, Copy, Eq, Ord)]
-            pub struct Bounded<const MIN: Inner, const MAX: Inner> (Inner);
-        }
+        /// An
+        #[doc = concat!("[`", stringify!($inner), "`]")]
+        /// constrained to be in the range `MIN..=MAX`.
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "types")))]
+        #[repr(transparent)]
+        #[derive(Debug, Hash, Clone, Copy, Eq, Ord)]
+        pub struct Bounded<const MIN: Inner, const MAX: Inner>(Inner);
 
         impl<const MIN: Inner, const MAX: Inner> Bounded<MIN, MAX> {
             /// The smallest value this bounded integer can contain.
@@ -756,7 +746,6 @@ macro_rules! define_bounded_integers {
                     }
                 }
             }
-
 
             #[test]
             fn iter() {
