@@ -22,6 +22,9 @@ pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
     if item.arbitrary {
         generate_arbitrary(item, tokens);
     }
+    if item.bytemuck {
+        generate_bytemuck(item, tokens);
+    }
     if item.serde {
         generate_serde(item, tokens);
     }
@@ -947,6 +950,27 @@ fn generate_arbitrary(item: &BoundedInteger, tokens: &mut TokenStream) {
     });
 }
 
+fn generate_bytemuck(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let ident = &item.ident;
+    let repr = &item.repr;
+    let crate_path = &item.crate_path;
+    let bytemuck = quote!(#crate_path::__private::bytemuck);
+
+    tokens.extend(quote! {
+        unsafe impl #bytemuck::Contiguous for #ident {
+            type Int = ::core::primitive::#repr;
+            const MAX_VALUE: ::core::primitive::#repr = Self::MAX_VALUE;
+            const MIN_VALUE: ::core::primitive::#repr = Self::MIN_VALUE;
+        }
+    });
+
+    if item.range.contains(&BigInt::from(0)) {
+        tokens.extend(quote! {
+            unsafe impl #bytemuck::Zeroable for #ident {}
+        });
+    }
+}
+
 fn generate_serde(item: &BoundedInteger, tokens: &mut TokenStream) {
     let ident = &item.ident;
     let repr = &item.repr;
@@ -1180,7 +1204,7 @@ mod tests {
         input: TokenStream,
         expected: TokenStream,
     ) {
-        let item = match parse2::<BoundedInteger>(quote!([::path] false false false #input)) {
+        let item = match parse2::<BoundedInteger>(quote!([::path] false false false false #input)) {
             Ok(item) => item,
             Err(e) => panic!("Failed to parse '{}': {}", input.to_string(), e),
         };

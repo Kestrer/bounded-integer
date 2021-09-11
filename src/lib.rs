@@ -50,6 +50,8 @@
 //! - `types`: Enable the bounded integer types that use const generics.
 //! - `arbitrary`: Implement [`Arbitrary`] for the bounded integers. This is useful when using
 //! bounded integers as fuzzing inputs.
+//! - `bytemuck`: Implement [`Contiguous`] for all bounded integers, and [`Zeroable`] for
+//! macro-generated bounded integers that support it.
 //! - `serde`: Implement `Serialize` and `Deserialize` for the bounded integers, making sure all
 //! values will never be out of bounds.
 //! - `step_trait`: Implement the [`Step`] trait which allows the bounded integers to be easily used
@@ -59,6 +61,8 @@
 //! [`bounded_integer!`]: https://docs.rs/bounded-integer/*/bounded_integer/macro.bounded_integer.html
 //! [`examples`]: https://docs.rs/bounded-integer/*/bounded_integer/examples/
 //! [`Arbitrary`]: https://docs.rs/arbitrary/1/arbitrary/trait.Arbitrary.html
+//! [`Contiguous`]: https://docs.rs/bytemuck/1/bytemuck/trait.Contiguous.html
+//! [`Zeroable`]: https://docs.rs/bytemuck/1/bytemuck/trait.Zeroable.html
 //! [`Step`]: https://doc.rust-lang.org/nightly/core/iter/trait.Step.html
 //! [`Error`]: https://doc.rust-lang.org/stable/std/error/trait.Error.html
 //! [`ParseError`]: https://docs.rs/bounded-integer/*/bounded_integer/struct.ParseError.html
@@ -83,6 +87,9 @@ pub use parse::{ParseError, ParseErrorKind};
 pub mod __private {
     #[cfg(feature = "arbitrary")]
     pub use ::arbitrary;
+
+    #[cfg(feature = "bytemuck")]
+    pub use ::bytemuck;
 
     #[cfg(feature = "serde")]
     pub use ::serde;
@@ -188,6 +195,7 @@ macro_rules! bounded_integer {
 #[cfg(feature = "macro")]
 block! {
     let arbitrary: ident = cfg_bool!(feature = "arbitrary");
+    let bytemuck: ident = cfg_bool!(feature = "bytemuck");
     let serde: ident = cfg_bool!(feature = "serde");
     let step_trait: ident = cfg_bool!(feature = "step_trait");
     let d: tt = dollar!();
@@ -196,7 +204,7 @@ block! {
     #[macro_export]
     macro_rules! __bounded_integer_inner2 {
         ($d($d tt:tt)*) => {
-            $crate::__private::proc_macro! { [$crate] $arbitrary $serde $step_trait $d($d tt)* }
+            $crate::__private::proc_macro! { [$crate] $arbitrary $bytemuck $serde $step_trait $d($d tt)* }
         };
     }
 

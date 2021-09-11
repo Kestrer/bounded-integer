@@ -55,6 +55,8 @@ By default, no crate features are enabled.
 - `types`: Enable the bounded integer types that use const generics.
 - `arbitrary`: Implement [`Arbitrary`] for the bounded integers. This is useful when using
 bounded integers as fuzzing inputs.
+- `bytemuck`: Implement [`Contiguous`] for all bounded integers, and [`Zeroable`] for
+macro-generated bounded integers that support it.
 - `serde`: Implement `Serialize` and `Deserialize` for the bounded integers, making sure all
 values will never be out of bounds.
 - `step_trait`: Implement the [`Step`] trait which allows the bounded integers to be easily used
@@ -64,6 +66,8 @@ crate root if you use the macro.
 [`bounded_integer!`]: https://docs.rs/bounded-integer/*/bounded_integer/macro.bounded_integer.html
 [`examples`]: https://docs.rs/bounded-integer/*/bounded_integer/examples/
 [`Arbitrary`]: https://docs.rs/arbitrary/1/arbitrary/trait.Arbitrary.html
+[`Contiguous`]: https://docs.rs/bytemuck/1/bytemuck/trait.Contiguous.html
+[`Zeroable`]: https://docs.rs/bytemuck/1/bytemuck/trait.Zeroable.html
 [`Step`]: https://doc.rust-lang.org/nightly/core/iter/trait.Step.html
 [`Error`]: https://doc.rust-lang.org/stable/std/error/trait.Error.html
 [`ParseError`]: https://docs.rs/bounded-integer/*/bounded_integer/struct.ParseError.html

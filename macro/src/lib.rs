@@ -60,12 +60,14 @@ macro_rules! signed {
     };
 }
 
+#[allow(clippy::struct_excessive_bools)]
 struct BoundedInteger {
     // $crate
     crate_path: TokenStream,
 
     // Optional features
     arbitrary: bool,
+    bytemuck: bool,
     serde: bool,
     step_trait: bool,
 
@@ -84,6 +86,7 @@ impl Parse for BoundedInteger {
         let crate_path = input.parse::<Group>()?.stream();
 
         let arbitrary = input.parse::<LitBool>()?.value;
+        let bytemuck = input.parse::<LitBool>()?.value;
         let serde = input.parse::<LitBool>()?.value;
         let step_trait = input.parse::<LitBool>()?.value;
 
@@ -160,6 +163,7 @@ impl Parse for BoundedInteger {
         Ok(Self {
             crate_path,
             arbitrary,
+            bytemuck,
             serde,
             step_trait,
             attrs,

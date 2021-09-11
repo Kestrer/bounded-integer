@@ -666,6 +666,15 @@ macro_rules! define_bounded_integers {
             }
         }
 
+        // === Bytemuck ===
+
+        #[cfg(feature = "bytemuck")]
+        unsafe impl<const MIN: Inner, const MAX: Inner> bytemuck::Contiguous for Bounded<MIN, MAX> {
+            type Int = Inner;
+            const MAX_VALUE: Inner = MAX;
+            const MIN_VALUE: Inner = MIN;
+        }
+
         // === Serde ===
 
         #[cfg(feature = "serde")]
