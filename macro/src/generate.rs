@@ -6,13 +6,7 @@ use num_bigint::BigInt;
 
 use crate::{BoundedInteger, Kind};
 
-#[derive(Clone, Copy)]
-pub(crate) struct Features {
-    pub(crate) serde: bool,
-    pub(crate) step_trait: bool,
-}
-
-pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream, features: Features) {
+pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
     generate_item(item, tokens);
     generate_impl(item, tokens);
 
@@ -21,11 +15,14 @@ pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream, features
     generate_cmp_traits(item, tokens);
     generate_as_ref_borrow(item, tokens);
     generate_default(item, tokens);
-    generate_iter_traits(item, tokens, features);
+    generate_iter_traits(item, tokens);
     generate_from_str(item, tokens);
     generate_fmt_traits(item, tokens);
     generate_to_primitive_traits(item, tokens);
-    if features.serde {
+    if item.arbitrary {
+        generate_arbitrary(item, tokens);
+    }
+    if item.serde {
         generate_serde(item, tokens);
     }
 
@@ -792,7 +789,7 @@ fn generate_default(item: &BoundedInteger, tokens: &mut TokenStream) {
     }
 }
 
-fn generate_iter_traits(item: &BoundedInteger, tokens: &mut TokenStream, features: Features) {
+fn generate_iter_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
     let ident = &item.ident;
     let repr = &item.repr;
 
@@ -860,7 +857,7 @@ fn generate_iter_traits(item: &BoundedInteger, tokens: &mut TokenStream, feature
         }
     });
 
-    if features.step_trait {
+    if item.step_trait {
         tokens.extend(quote! {
             impl ::core::iter::Step for #ident {
                 #[inline]
@@ -926,6 +923,28 @@ fn generate_to_primitive_traits(item: &BoundedInteger, tokens: &mut TokenStream)
             }
         });
     }
+}
+
+fn generate_arbitrary(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let ident = &item.ident;
+    let repr = &item.repr;
+    let crate_path = &item.crate_path;
+    let arbitrary = quote!(#crate_path::__private::arbitrary);
+
+    tokens.extend(quote! {
+        impl<'a> #arbitrary::Arbitrary<'a> for #ident {
+            fn arbitrary(u: &mut #arbitrary::Unstructured<'a>) -> #arbitrary::Result<Self> {
+                Self::new(u.arbitrary()?).ok_or(#arbitrary::Error::IncorrectFormat)
+            }
+
+            #[inline]
+            fn size_hint(
+                depth: ::core::primitive::usize,
+            ) -> (::core::primitive::usize, ::core::option::Option<::core::primitive::usize>) {
+                <#repr as #arbitrary::Arbitrary<'a>>::size_hint(depth)
+            }
+        }
+    });
 }
 
 fn generate_serde(item: &BoundedInteger, tokens: &mut TokenStream) {

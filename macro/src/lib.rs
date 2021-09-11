@@ -16,55 +16,15 @@ use syn::{braced, parse_macro_input, token::Brace, Token};
 use syn::{Attribute, Error, Expr, PathArguments, PathSegment, Visibility};
 use syn::{BinOp, ExprBinary, ExprRange, ExprUnary, RangeLimits, UnOp};
 use syn::{ExprGroup, ExprParen};
-use syn::{ExprLit, Lit};
+use syn::{ExprLit, Lit, LitBool};
 
 use num_bigint::{BigInt, TryFromBigIntError};
 
 mod generate;
-use generate::Features;
 
 #[proc_macro]
-pub fn not_serde_not_step_trait(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    bounded_integer(
-        input,
-        Features {
-            serde: false,
-            step_trait: false,
-        },
-    )
-}
-#[proc_macro]
-pub fn not_serde_step_trait(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    bounded_integer(
-        input,
-        Features {
-            serde: false,
-            step_trait: true,
-        },
-    )
-}
-#[proc_macro]
-pub fn serde_not_step_trait(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    bounded_integer(
-        input,
-        Features {
-            serde: true,
-            step_trait: false,
-        },
-    )
-}
-#[proc_macro]
-pub fn serde_step_trait(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    bounded_integer(
-        input,
-        Features {
-            serde: true,
-            step_trait: true,
-        },
-    )
-}
-
-fn bounded_integer(input: proc_macro::TokenStream, features: Features) -> proc_macro::TokenStream {
+#[doc(hidden)]
+pub fn bounded_integer(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut item = parse_macro_input!(input as BoundedInteger);
 
     // Hide in a module to prevent access to private parts.
@@ -79,7 +39,7 @@ fn bounded_integer(input: proc_macro::TokenStream, features: Features) -> proc_m
 
     item.vis = raise_one_level(original_visibility);
     let mut result = TokenStream::new();
-    generate::generate(&item, &mut result, features);
+    generate::generate(&item, &mut result);
 
     quote!(
         #[allow(non_snake_case)]
@@ -101,7 +61,15 @@ macro_rules! signed {
 }
 
 struct BoundedInteger {
+    // $crate
     crate_path: TokenStream,
+
+    // Optional features
+    arbitrary: bool,
+    serde: bool,
+    step_trait: bool,
+
+    // The item itself
     attrs: Vec<Attribute>,
     repr: Repr,
     vis: Visibility,
@@ -114,6 +82,10 @@ struct BoundedInteger {
 impl Parse for BoundedInteger {
     fn parse(input: ParseStream<'_>) -> parse::Result<Self> {
         let crate_path = input.parse::<Group>()?.stream();
+
+        let arbitrary = input.parse::<LitBool>()?.value;
+        let serde = input.parse::<LitBool>()?.value;
+        let step_trait = input.parse::<LitBool>()?.value;
 
         let mut attrs = input.call(Attribute::parse_outer)?;
 
@@ -187,6 +159,9 @@ impl Parse for BoundedInteger {
 
         Ok(Self {
             crate_path,
+            arbitrary,
+            serde,
+            step_trait,
             attrs,
             repr,
             vis,

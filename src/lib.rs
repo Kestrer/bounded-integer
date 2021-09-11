@@ -48,6 +48,8 @@
 //! - `std`: Implement traits from `std`, such as [`Error`] on [`ParseError`].
 //! - `macro`: Enable the [`bounded_integer!`] macro.
 //! - `types`: Enable the bounded integer types that use const generics.
+//! - `arbitrary`: Implement [`Arbitrary`] for the bounded integers. This is useful when using
+//! bounded integers as fuzzing inputs.
 //! - `serde`: Implement `Serialize` and `Deserialize` for the bounded integers, making sure all
 //! values will never be out of bounds.
 //! - `step_trait`: Implement the [`Step`] trait which allows the bounded integers to be easily used
@@ -56,11 +58,13 @@
 //!
 //! [`bounded_integer!`]: https://docs.rs/bounded-integer/*/bounded_integer/macro.bounded_integer.html
 //! [`examples`]: https://docs.rs/bounded-integer/*/bounded_integer/examples/
+//! [`Arbitrary`]: https://docs.rs/arbitrary/1/arbitrary/trait.Arbitrary.html
 //! [`Step`]: https://doc.rust-lang.org/nightly/core/iter/trait.Step.html
 //! [`Error`]: https://doc.rust-lang.org/stable/std/error/trait.Error.html
 //! [`ParseError`]: https://docs.rs/bounded-integer/*/bounded_integer/struct.ParseError.html
 #![cfg_attr(feature = "step_trait", feature(step_trait))]
 #![cfg_attr(doc_cfg, feature(doc_cfg))]
+#![allow(clippy::single_component_path_imports)] // https://github.com/rust-lang/rust-clippy/issues/7106
 #![no_std]
 
 #[cfg(feature = "std")]
@@ -77,17 +81,13 @@ pub use parse::{ParseError, ParseErrorKind};
 #[doc(hidden)]
 #[cfg(feature = "macro")]
 pub mod __private {
+    #[cfg(feature = "arbitrary")]
+    pub use ::arbitrary;
+
     #[cfg(feature = "serde")]
     pub use ::serde;
 
-    #[cfg(all(not(feature = "serde"), not(feature = "step_trait")))]
-    pub use bounded_integer_macro::not_serde_not_step_trait as proc_macro;
-    #[cfg(all(not(feature = "serde"), feature = "step_trait"))]
-    pub use bounded_integer_macro::not_serde_step_trait as proc_macro;
-    #[cfg(all(feature = "serde", not(feature = "step_trait")))]
-    pub use bounded_integer_macro::serde_not_step_trait as proc_macro;
-    #[cfg(all(feature = "serde", feature = "step_trait"))]
-    pub use bounded_integer_macro::serde_step_trait as proc_macro;
+    pub use bounded_integer_macro::bounded_integer as proc_macro;
 
     pub use crate::parse::{error_above_max, error_below_min, FromStrRadix};
 }
@@ -177,7 +177,62 @@ pub mod examples;
 #[cfg_attr(doc_cfg, doc(cfg(feature = "macro")))]
 #[macro_export]
 macro_rules! bounded_integer {
-    ($($tt:tt)*) => {
-        $crate::__private::proc_macro!([$crate] $($tt)*);
+    ($($tt:tt)*) => { $crate::__bounded_integer_inner! { $($tt)* } };
+}
+
+// `bounded_integer!` needs to generate different output depending on what feature flags are
+// enabled in this crate. We can't propagate feature flags from this crate directly to
+// `bounded-integer-macro` because it is an optional dependency, so we instead dynamically pass
+// options into the macro depending on which feature flags are enabled here.
+
+#[cfg(feature = "macro")]
+block! {
+    let arbitrary: ident = cfg_bool!(feature = "arbitrary");
+    let serde: ident = cfg_bool!(feature = "serde");
+    let step_trait: ident = cfg_bool!(feature = "step_trait");
+    let d: tt = dollar!();
+
+    #[doc(hidden)]
+    #[macro_export]
+    macro_rules! __bounded_integer_inner2 {
+        ($d($d tt:tt)*) => {
+            $crate::__private::proc_macro! { [$crate] $arbitrary $serde $step_trait $d($d tt)* }
+        };
+    }
+
+    // Workaround for `macro_expanded_macro_exports_accessed_by_absolute_paths`
+    #[doc(hidden)]
+    pub use __bounded_integer_inner2 as __bounded_integer_inner;
+}
+
+#[cfg(feature = "macro")]
+macro_rules! cfg_bool {
+    ($meta:meta) => {
+        #[cfg($meta)]
+        ret! { true }
+        #[cfg(not($meta))]
+        ret! { false }
     };
 }
+use cfg_bool;
+
+#[cfg(feature = "macro")]
+macro_rules! dollar {
+    () => { ret! { $ } };
+}
+use dollar;
+
+#[cfg(feature = "macro")]
+macro_rules! block {
+    { let $ident:ident: $ty:ident = $macro:ident!($($macro_args:tt)*); $($rest:tt)* } => {
+        macro_rules! ret {
+            ($d:tt) => {
+                macro_rules! ret { ($d $ident: $ty) => { block! { $($rest)* } } }
+                $macro! { $($macro_args)* }
+            }
+        }
+        dollar! {}
+    };
+    { $($rest:tt)* } => { $($rest)* };
+}
+use block;

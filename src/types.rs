@@ -649,6 +649,23 @@ macro_rules! define_bounded_integers {
 
         impl_fmt_traits!(Binary, Display, LowerExp, LowerHex, Octal, UpperExp, UpperHex);
 
+        // === Arbitrary ===
+
+        #[cfg(feature = "arbitrary")]
+        use arbitrary::{Arbitrary, Unstructured};
+
+        #[cfg(feature = "arbitrary")]
+        impl<'a, const MIN: Inner, const MAX: Inner> Arbitrary<'a> for Bounded<MIN, MAX> {
+            fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
+                Self::new(u.arbitrary()?).ok_or(arbitrary::Error::IncorrectFormat)
+            }
+
+            #[inline]
+            fn size_hint(depth: usize) -> (usize, Option<usize>) {
+                <Inner as Arbitrary<'a>>::size_hint(depth)
+            }
+        }
+
         // === Serde ===
 
         #[cfg(feature = "serde")]
