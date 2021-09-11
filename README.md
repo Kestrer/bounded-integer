@@ -50,6 +50,7 @@ All the integers in this crate depend only on libcore and so work in `#![no_std]
 ## Crate Features
 
 By default, no crate features are enabled.
+- `std`: Implement traits from `std`, such as [`Error`] on [`ParseError`].
 - `macro`: Enable the [`bounded_integer!`] macro.
 - `types`: Enable the bounded integer types that use const generics.
 - `serde`: Implement `Serialize` and `Deserialize` for the bounded integers, making sure all
@@ -61,6 +62,8 @@ crate root if you use the macro.
 [`bounded_integer!`]: https://docs.rs/bounded-integer/*/bounded_integer/macro.bounded_integer.html
 [`examples`]: https://docs.rs/bounded-integer/*/bounded_integer/examples/
 [`Step`]: https://doc.rust-lang.org/nightly/core/iter/trait.Step.html
+[`Error`]: https://doc.rust-lang.org/stable/std/error/trait.Error.html
+[`ParseError`]: https://docs.rs/bounded-integer/*/bounded_integer/struct.ParseError.html
 
 ## License
 

@@ -16,13 +16,13 @@ pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream, features
     generate_item(item, tokens);
     generate_impl(item, tokens);
 
-    // TODO: Implement FromStr, TryFrom and TryInto. This will require adding error types to the
-    // main crate.
+    // TODO: Implement TryFrom and TryInto. This will require adding an error type to the main crate.
     generate_ops_traits(item, tokens);
     generate_cmp_traits(item, tokens);
     generate_as_ref_borrow(item, tokens);
     generate_default(item, tokens);
     generate_iter_traits(item, tokens, features);
+    generate_from_str(item, tokens);
     generate_fmt_traits(item, tokens);
     generate_to_primitive_traits(item, tokens);
     if features.serde {
@@ -98,6 +98,7 @@ fn generate_impl(item: &BoundedInteger, tokens: &mut TokenStream) {
     generate_min_max(item, &mut content);
     generate_unchecked_constructors(item, &mut content);
     generate_checked_constructors(item, &mut content);
+    generate_from_str_radix(item, &mut content);
     generate_getters(item, &mut content);
     generate_inherent_operators(item, &mut content);
     generate_checked_operators(item, &mut content);
@@ -312,6 +313,36 @@ fn generate_checked_constructors(item: &BoundedInteger, tokens: &mut TokenStream
         #[inline]
         #vis const fn new_saturating(n: ::core::primitive::#repr) -> Self {
             #new_saturating_body
+        }
+    });
+}
+
+fn generate_from_str_radix(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let repr = &item.repr;
+    let vis = &item.vis;
+    let crate_path = &item.crate_path;
+
+    tokens.extend(quote! {
+        /// Converts a string slice in a given base to the bounded integer.
+        ///
+        /// # Panics
+        ///
+        /// Panics if `radix` is below 2 or above 36.
+        #vis fn from_str_radix(
+            src: &::core::primitive::str,
+            radix: ::core::primitive::u32
+        ) -> ::core::result::Result<Self, #crate_path::ParseError> {
+            let value: ::core::primitive::#repr = #crate_path::__private::FromStrRadix::from_str_radix(
+                src,
+                radix
+            )?;
+            if value < Self::MIN_VALUE {
+                ::core::result::Result::Err(#crate_path::__private::error_below_min())
+            } else if value > Self::MAX_VALUE {
+                ::core::result::Result::Err(#crate_path::__private::error_above_max())
+            } else {
+                ::core::result::Result::Ok(unsafe { Self::new_unchecked(value) })
+            }
         }
     });
 }
@@ -847,6 +878,20 @@ fn generate_iter_traits(item: &BoundedInteger, tokens: &mut TokenStream, feature
             }
         });
     }
+}
+
+fn generate_from_str(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let ident = &item.ident;
+    let crate_path = &item.crate_path;
+
+    tokens.extend(quote! {
+        impl ::core::str::FromStr for #ident {
+            type Err = #crate_path::ParseError;
+            fn from_str(s: &::core::primitive::str) -> ::core::result::Result<Self, Self::Err> {
+                Self::from_str_radix(s, 10)
+            }
+        }
+    });
 }
 
 fn generate_fmt_traits(item: &BoundedInteger, tokens: &mut TokenStream) {

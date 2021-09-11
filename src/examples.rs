@@ -111,15 +111,58 @@ mod tests {
         };
     }
 
+    macro_rules! test_parse {
+        ($fn:ident, $bounded:ident) => {
+            #[test]
+            fn $fn() {
+                use crate::ParseErrorKind::*;
+
+                assert_eq!("0".parse::<$bounded>().unwrap().get(), 0);
+                assert_eq!("-0".parse::<$bounded>().unwrap().get(), 0);
+                assert_eq!("+0".parse::<$bounded>().unwrap().get(), 0);
+                assert_eq!("3".parse::<$bounded>().unwrap().get(), 3);
+                assert_eq!("-8".parse::<$bounded>().unwrap().get(), -8);
+                assert_eq!("+7".parse::<$bounded>().unwrap().get(), 7);
+                assert_eq!($bounded::from_str_radix("0110", 2).unwrap().get(), 6);
+                assert_eq!($bounded::from_str_radix("-0111", 2).unwrap().get(), -7);
+                assert_eq!($bounded::from_str_radix("12", 4).unwrap().get(), 6);
+                assert_eq!($bounded::from_str_radix("+2", 36).unwrap().get(), 2);
+
+                assert_eq!("".parse::<$bounded>().unwrap_err().kind(), NoDigits);
+                assert_eq!("+".parse::<$bounded>().unwrap_err().kind(), NoDigits);
+                assert_eq!("-".parse::<$bounded>().unwrap_err().kind(), NoDigits);
+                assert_eq!("-9".parse::<$bounded>().unwrap_err().kind(), BelowMin);
+                assert_eq!("8".parse::<$bounded>().unwrap_err().kind(), AboveMax);
+                assert_eq!(
+                    $bounded::from_str_radix("11", 7).unwrap_err().kind(),
+                    AboveMax
+                );
+                assert_eq!("45483".parse::<$bounded>().unwrap_err().kind(), AboveMax);
+                assert_eq!("-01934".parse::<$bounded>().unwrap_err().kind(), BelowMin);
+
+                assert_eq!("++0".parse::<$bounded>().unwrap_err().kind(), InvalidDigit);
+                assert_eq!("--0".parse::<$bounded>().unwrap_err().kind(), InvalidDigit);
+                assert_eq!("O".parse::<$bounded>().unwrap_err().kind(), InvalidDigit);
+                assert_eq!("C".parse::<$bounded>().unwrap_err().kind(), InvalidDigit);
+                assert_eq!(
+                    $bounded::from_str_radix("3", 2).unwrap_err().kind(),
+                    InvalidDigit
+                );
+            }
+        };
+    }
+
     test_range!(test_struct_range, BoundedStruct);
     test_saturating!(test_struct_saturating, BoundedStruct);
     test_arithmetic!(test_struct_arithmetic, BoundedStruct);
     test_iter!(test_struct_iter, BoundedStruct);
+    test_parse!(test_struct_parse, BoundedStruct);
 
     test_range!(test_enum_range, BoundedEnum);
     test_saturating!(test_enum_saturating, BoundedEnum);
     test_arithmetic!(test_enum_arithmetic, BoundedEnum);
     test_iter!(test_enum_iter, BoundedEnum);
+    test_parse!(test_enum_parse, BoundedEnum);
 
     #[allow(unused_imports)]
     mod all_below_zero {

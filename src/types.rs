@@ -147,6 +147,9 @@ macro_rules! define_bounded_integers {
         use core::cmp;
         use core::fmt;
         use core::iter;
+        use core::str::FromStr;
+
+        use crate::parse::{ParseError, FromStrRadix};
 
         type Inner = core::primitive::$inner;
 
@@ -264,6 +267,22 @@ macro_rules! define_bounded_integers {
                     Self::MAX
                 } else {
                     Self(n)
+                }
+            }
+
+            /// Converts a string slice in a given base to the bounded integer.
+            ///
+            /// # Panics
+            ///
+            /// Panics if `radix` is below 2 or above 36.
+            pub fn from_str_radix(src: &str, radix: u32) -> Result<Self, ParseError> {
+                let value = <Inner as FromStrRadix>::from_str_radix(src, radix)?;
+                if value < Self::MIN_VALUE {
+                    Err(crate::parse::error_below_min())
+                } else if value > Self::MAX_VALUE {
+                    Err(crate::parse::error_above_max())
+                } else {
+                    Ok(unsafe { Self::new_unchecked(value) })
                 }
             }
 
@@ -626,6 +645,16 @@ macro_rules! define_bounded_integers {
             }
         }
 
+        // === Parsing ===
+
+        impl<const MIN: Inner, const MAX: Inner> FromStr for Bounded<MIN, MAX> {
+            type Err = ParseError;
+
+            fn from_str(s: &str) -> Result<Self, Self::Err> {
+                Self::from_str_radix(s, 10)
+            }
+        }
+
         // === Formatting ===
 
         impl_fmt_traits!(Binary, Display, LowerExp, LowerHex, Octal, UpperExp, UpperHex);
@@ -669,6 +698,9 @@ macro_rules! define_bounded_integers {
         #[cfg(test)]
         mod tests {
             use super::Inner;
+
+            #[cfg(feature = "std")]
+            use std::format;
 
             #[test]
             fn range() {
@@ -725,6 +757,7 @@ macro_rules! define_bounded_integers {
                 }
             }
 
+
             #[test]
             fn iter() {
                 type Bounded = super::Bounded<{ 0 $($(if $signed)? - 8)? }, 8>;
@@ -742,6 +775,44 @@ macro_rules! define_bounded_integers {
                 assert_eq!([1, 3, 2, 1, 0].iter().map(b).product::<Bounded>().get(), 0);
                 $($(if $signed)? assert_eq!([-2, -3, -1].iter().map(b).product::<Bounded>().get(), -6);)?
                 assert_eq!([3, 3].iter().map(b).product::<Inner>(), 9);
+            }
+
+            #[test]
+            fn parse() {
+                use crate::ParseErrorKind::*;
+
+                type Bounded = super::Bounded<3, 11>;
+
+                assert_eq!("3".parse::<Bounded>().unwrap().get(), 3);
+                assert_eq!("10".parse::<Bounded>().unwrap().get(), 10);
+                assert_eq!("+11".parse::<Bounded>().unwrap().get(), 11);
+                assert_eq!(Bounded::from_str_radix("1010", 2).unwrap().get(), 10);
+                assert_eq!(Bounded::from_str_radix("B", 0xC).unwrap().get(), 11);
+                assert_eq!(Bounded::from_str_radix("11", 7).unwrap().get(), 8);
+                assert_eq!(Bounded::from_str_radix("7", 36).unwrap().get(), 7);
+
+                assert_eq!("".parse::<Bounded>().unwrap_err().kind(), NoDigits);
+                assert_eq!("+".parse::<Bounded>().unwrap_err().kind(), NoDigits);
+                assert_eq!("-".parse::<Bounded>().unwrap_err().kind(), NoDigits);
+                assert_eq!("2".parse::<Bounded>().unwrap_err().kind(), BelowMin);
+                assert_eq!("12".parse::<Bounded>().unwrap_err().kind(), AboveMax);
+                assert_eq!("-5".parse::<Bounded>().unwrap_err().kind(), BelowMin);
+                #[cfg(feature = "std")]
+                assert_eq!(
+                    format!("{}00", Inner::MAX).parse::<Bounded>().unwrap_err().kind(),
+                    AboveMax
+                );
+                #[cfg(feature = "std")]
+                assert_eq!(
+                    format!("{}00", Inner::MIN).parse::<Bounded>().unwrap_err().kind(),
+                    BelowMin
+                );
+
+                assert_eq!("++0".parse::<Bounded>().unwrap_err().kind(), InvalidDigit);
+                assert_eq!("--0".parse::<Bounded>().unwrap_err().kind(), InvalidDigit);
+                assert_eq!("O".parse::<Bounded>().unwrap_err().kind(), InvalidDigit);
+                assert_eq!("C".parse::<Bounded>().unwrap_err().kind(), InvalidDigit);
+                assert_eq!(Bounded::from_str_radix("3", 2).unwrap_err().kind(), InvalidDigit);
             }
         }
     } pub use self::$inner::Bounded as $name; )* }

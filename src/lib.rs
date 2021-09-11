@@ -45,6 +45,7 @@
 //! # Crate Features
 //!
 //! By default, no crate features are enabled.
+//! - `std`: Implement traits from `std`, such as [`Error`] on [`ParseError`].
 //! - `macro`: Enable the [`bounded_integer!`] macro.
 //! - `types`: Enable the bounded integer types that use const generics.
 //! - `serde`: Implement `Serialize` and `Deserialize` for the bounded integers, making sure all
@@ -56,14 +57,22 @@
 //! [`bounded_integer!`]: https://docs.rs/bounded-integer/*/bounded_integer/macro.bounded_integer.html
 //! [`examples`]: https://docs.rs/bounded-integer/*/bounded_integer/examples/
 //! [`Step`]: https://doc.rust-lang.org/nightly/core/iter/trait.Step.html
+//! [`Error`]: https://doc.rust-lang.org/stable/std/error/trait.Error.html
+//! [`ParseError`]: https://docs.rs/bounded-integer/*/bounded_integer/struct.ParseError.html
 #![cfg_attr(feature = "step_trait", feature(step_trait))]
 #![cfg_attr(doc_cfg, feature(doc_cfg))]
 #![no_std]
+
+#[cfg(feature = "std")]
+extern crate std;
 
 #[cfg(feature = "types")]
 mod types;
 #[cfg(feature = "types")]
 pub use types::*;
+
+mod parse;
+pub use parse::{ParseError, ParseErrorKind};
 
 #[doc(hidden)]
 #[cfg(feature = "macro")]
@@ -79,6 +88,8 @@ pub mod __private {
     pub use bounded_integer_macro::serde_not_step_trait as proc_macro;
     #[cfg(all(feature = "serde", feature = "step_trait"))]
     pub use bounded_integer_macro::serde_step_trait as proc_macro;
+
+    pub use crate::parse::{error_above_max, error_below_min, FromStrRadix};
 }
 
 #[cfg(feature = "__examples")]
