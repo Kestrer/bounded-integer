@@ -146,9 +146,9 @@ macro_rules! define_bounded_integers {
 
         type Inner = core::primitive::$inner;
 
-        /// An
+        #[doc = "An"]
         #[doc = concat!("[`", stringify!($inner), "`]")]
-        /// constrained to be in the range `MIN..=MAX`.
+        #[doc = "constrained to be in the range `MIN..=MAX`."]
         #[cfg_attr(doc_cfg, doc(cfg(feature = "types")))]
         #[repr(transparent)]
         #[derive(Debug, Hash, Clone, Copy, Eq, Ord)]
@@ -620,6 +620,7 @@ macro_rules! define_bounded_integers {
         }
 
         #[cfg(feature = "step_trait")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "step_trait")))]
         impl<const MIN: Inner, const MAX: Inner> iter::Step for Bounded<MIN, MAX> {
             #[inline]
             fn steps_between(start: &Self, end: &Self) -> Option<usize> {
@@ -655,6 +656,7 @@ macro_rules! define_bounded_integers {
         use arbitrary::{Arbitrary, Unstructured};
 
         #[cfg(feature = "arbitrary")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "arbitrary")))]
         impl<'a, const MIN: Inner, const MAX: Inner> Arbitrary<'a> for Bounded<MIN, MAX> {
             fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
                 Self::new(u.arbitrary()?).ok_or(arbitrary::Error::IncorrectFormat)
@@ -669,6 +671,7 @@ macro_rules! define_bounded_integers {
         // === Bytemuck ===
 
         #[cfg(feature = "bytemuck")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "bytemuck")))]
         unsafe impl<const MIN: Inner, const MAX: Inner> bytemuck::Contiguous for Bounded<MIN, MAX> {
             type Int = Inner;
             const MAX_VALUE: Inner = MAX;
@@ -681,6 +684,7 @@ macro_rules! define_bounded_integers {
         use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
 
         #[cfg(feature = "serde")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "serde")))]
         impl<const MIN: Inner, const MAX: Inner> Serialize for Bounded<MIN, MAX> {
             fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
                 self.get().serialize(serializer)
@@ -688,6 +692,7 @@ macro_rules! define_bounded_integers {
         }
 
         #[cfg(feature = "serde")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "serde")))]
         impl<'de, const MIN: Inner, const MAX: Inner> Deserialize<'de> for Bounded<MIN, MAX> {
             fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
                 Self::new(Inner::deserialize(deserializer)?)
