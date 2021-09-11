@@ -1180,7 +1180,7 @@ mod tests {
         input: TokenStream,
         expected: TokenStream,
     ) {
-        let item = match parse2::<BoundedInteger>(quote!([::path] #input)) {
+        let item = match parse2::<BoundedInteger>(quote!([::path] false false false #input)) {
             Ok(item) => item,
             Err(e) => panic!("Failed to parse '{}': {}", input.to_string(), e),
         };

@@ -214,12 +214,14 @@ macro_rules! cfg_bool {
         ret! { false }
     };
 }
+#[cfg(feature = "macro")]
 use cfg_bool;
 
 #[cfg(feature = "macro")]
 macro_rules! dollar {
     () => { ret! { $ } };
 }
+#[cfg(feature = "macro")]
 use dollar;
 
 #[cfg(feature = "macro")]
@@ -235,4 +237,5 @@ macro_rules! block {
     };
     { $($rest:tt)* } => { $($rest)* };
 }
+#[cfg(feature = "macro")]
 use block;
