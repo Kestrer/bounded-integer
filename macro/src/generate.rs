@@ -4,7 +4,7 @@ use syn::Token;
 
 use num_bigint::BigInt;
 
-use crate::{BoundedInteger, Kind};
+use crate::{BoundedInteger, Kind, ReprSize, ReprSizeFixed};
 
 pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
     generate_item(item, tokens);
@@ -36,10 +36,23 @@ pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
 
 fn generate_item(item: &BoundedInteger, tokens: &mut TokenStream) {
     let repr = &item.repr;
+    let crate_path = &item.crate_path;
 
-    for attr in &item.attrs {
-        attr.to_tokens(tokens);
+    if item.zerocopy {
+        let zerocopy = quote!(#crate_path::__private::zerocopy);
+
+        // Zerocopy is not hygienic: https://bugs.fuchsia.dev/p/fuchsia/issues/detail?id=84476
+        tokens.extend(quote! {
+            use ::core::marker::Sized;
+            use #zerocopy;
+        });
+
+        tokens.extend(quote!(#[derive(#zerocopy::AsBytes)]));
+        if let ReprSize::Fixed(ReprSizeFixed::Fixed8) = item.repr.size {
+            tokens.extend(quote!(#[derive(#zerocopy::Unaligned)]));
+        }
     }
+
     tokens.extend(quote! {
         #[derive(
             ::core::fmt::Debug,
@@ -52,6 +65,10 @@ fn generate_item(item: &BoundedInteger, tokens: &mut TokenStream) {
             ::core::cmp::Ord
         )]
     });
+
+    for attr in &item.attrs {
+        attr.to_tokens(tokens);
+    }
 
     tokens.extend(match &item.kind {
         Kind::Enum(_) => quote!(#[repr(#repr)]),
@@ -1204,7 +1221,8 @@ mod tests {
         input: TokenStream,
         expected: TokenStream,
     ) {
-        let item = match parse2::<BoundedInteger>(quote!([::path] false false false false #input)) {
+        let input = quote!([::path] false false false false false #input);
+        let item = match parse2::<BoundedInteger>(input.clone()) {
             Ok(item) => item,
             Err(e) => panic!("Failed to parse '{}': {}", input.to_string(), e),
         };

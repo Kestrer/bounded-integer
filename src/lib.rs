@@ -54,6 +54,9 @@
 //! macro-generated bounded integers that support it.
 //! - `serde`: Implement [`Serialize`] and [`Deserialize`] for the bounded integers, making sure all
 //! values will never be out of bounds.
+//! - `zerocopy`: Implement [`AsBytes`] and [`Unaligned`] for macro-generated bounded integers. We
+//! can't implement them for const generic bounded integers due to [limitations in
+//! Zerocopy](https://bugs.fuchsia.dev/p/fuchsia/issues/detail?id=84475).
 //! - `step_trait`: Implement the [`Step`] trait which allows the bounded integers to be easily used
 //! in ranges. This will require you to use nightly and place `#![feature(step_trait)]` in your
 //! crate root if you use the macro.
@@ -65,6 +68,8 @@
 //! [`Zeroable`]: https://docs.rs/bytemuck/1/bytemuck/trait.Zeroable.html
 //! [`Serialize`]: https://docs.rs/serde/1/serde/trait.Serialize.html
 //! [`Deserialize`]: https://docs.rs/serde/1/serde/trait.Deserialize.html
+//! [`AsBytes`]: https://docs.rs/zerocopy/0.6/zerocopy/trait.AsBytes.html
+//! [`Unaligned`]: https://docs.rs/zerocopy/0.6/zerocopy/trait.Unaligned.html
 //! [`Step`]: https://doc.rust-lang.org/nightly/core/iter/trait.Step.html
 //! [`Error`]: https://doc.rust-lang.org/stable/std/error/trait.Error.html
 //! [`ParseError`]: https://docs.rs/bounded-integer/*/bounded_integer/struct.ParseError.html
@@ -95,6 +100,9 @@ pub mod __private {
 
     #[cfg(feature = "serde")]
     pub use ::serde;
+
+    #[cfg(feature = "zerocopy")]
+    pub use ::zerocopy;
 
     pub use bounded_integer_macro::bounded_integer as proc_macro;
 
@@ -199,6 +207,7 @@ block! {
     let arbitrary: ident = cfg_bool!(feature = "arbitrary");
     let bytemuck: ident = cfg_bool!(feature = "bytemuck");
     let serde: ident = cfg_bool!(feature = "serde");
+    let zerocopy: ident = cfg_bool!(feature = "zerocopy");
     let step_trait: ident = cfg_bool!(feature = "step_trait");
     let d: tt = dollar!();
 
@@ -206,7 +215,9 @@ block! {
     #[macro_export]
     macro_rules! __bounded_integer_inner2 {
         ($d($d tt:tt)*) => {
-            $crate::__private::proc_macro! { [$crate] $arbitrary $bytemuck $serde $step_trait $d($d tt)* }
+            $crate::__private::proc_macro! {
+                [$crate] $arbitrary $bytemuck $serde $zerocopy $step_trait $d($d tt)*
+            }
         };
     }
 

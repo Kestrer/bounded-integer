@@ -69,6 +69,7 @@ struct BoundedInteger {
     arbitrary: bool,
     bytemuck: bool,
     serde: bool,
+    zerocopy: bool,
     step_trait: bool,
 
     // The item itself
@@ -88,6 +89,7 @@ impl Parse for BoundedInteger {
         let arbitrary = input.parse::<LitBool>()?.value;
         let bytemuck = input.parse::<LitBool>()?.value;
         let serde = input.parse::<LitBool>()?.value;
+        let zerocopy = input.parse::<LitBool>()?.value;
         let step_trait = input.parse::<LitBool>()?.value;
 
         let mut attrs = input.call(Attribute::parse_outer)?;
@@ -165,6 +167,7 @@ impl Parse for BoundedInteger {
             arbitrary,
             bytemuck,
             serde,
+            zerocopy,
             step_trait,
             attrs,
             repr,
