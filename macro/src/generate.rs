@@ -1216,6 +1216,7 @@ mod tests {
     use super::*;
     use syn::parse2;
 
+    #[allow(clippy::needless_pass_by_value)]
     fn assert_result(
         f: impl FnOnce(&BoundedInteger, &mut TokenStream),
         input: TokenStream,
@@ -1224,7 +1225,7 @@ mod tests {
         let input = quote!([::path] false false false false false #input);
         let item = match parse2::<BoundedInteger>(input.clone()) {
             Ok(item) => item,
-            Err(e) => panic!("Failed to parse '{}': {}", input.to_string(), e),
+            Err(e) => panic!("Failed to parse '{}': {}", input, e),
         };
         let mut result = TokenStream::new();
         f(&item, &mut result);
