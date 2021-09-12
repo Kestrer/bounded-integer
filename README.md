@@ -53,13 +53,13 @@ By default, no crate features are enabled.
 - `std`: Implement traits from `std`, such as [`Error`] on [`ParseError`].
 - `macro`: Enable the [`bounded_integer!`] macro.
 - `types`: Enable the bounded integer types that use const generics.
-- `arbitrary`: Implement [`Arbitrary`] for the bounded integers. This is useful when using
+- `arbitrary1`: Implement [`Arbitrary`] for the bounded integers. This is useful when using
 bounded integers as fuzzing inputs.
-- `bytemuck`: Implement [`Contiguous`] for all bounded integers, and [`Zeroable`] for
+- `bytemuck1`: Implement [`Contiguous`] for all bounded integers, and [`Zeroable`] for
 macro-generated bounded integers that support it.
-- `serde`: Implement [`Serialize`] and [`Deserialize`] for the bounded integers, making sure all
-values will never be out of bounds.
-- `zerocopy`: Implement [`AsBytes`] and [`Unaligned`] for macro-generated bounded integers. We
+- `serde1`: Implement [`Serialize`] and [`Deserialize`] for the bounded integers, making sure all
+values will never be out of bounds. This has a deprecated alias `serde`.
+- `zerocopy06`: Implement [`AsBytes`] and [`Unaligned`] for macro-generated bounded integers. We
 can't implement them for const generic bounded integers due to [limitations in
 Zerocopy](https://bugs.fuchsia.dev/p/fuchsia/issues/detail?id=84475).
 - `step_trait`: Implement the [`Step`] trait which allows the bounded integers to be easily used

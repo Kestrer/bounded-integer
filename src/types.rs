@@ -652,14 +652,14 @@ macro_rules! define_bounded_integers {
 
         // === Arbitrary ===
 
-        #[cfg(feature = "arbitrary")]
-        use arbitrary::{Arbitrary, Unstructured};
+        #[cfg(feature = "arbitrary1")]
+        use arbitrary1::{Arbitrary, Unstructured};
 
-        #[cfg(feature = "arbitrary")]
-        #[cfg_attr(doc_cfg, doc(cfg(feature = "arbitrary")))]
+        #[cfg(feature = "arbitrary1")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "arbitrary1")))]
         impl<'a, const MIN: Inner, const MAX: Inner> Arbitrary<'a> for Bounded<MIN, MAX> {
-            fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
-                Self::new(u.arbitrary()?).ok_or(arbitrary::Error::IncorrectFormat)
+            fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary1::Result<Self> {
+                Self::new(u.arbitrary()?).ok_or(arbitrary1::Error::IncorrectFormat)
             }
 
             #[inline]
@@ -670,9 +670,9 @@ macro_rules! define_bounded_integers {
 
         // === Bytemuck ===
 
-        #[cfg(feature = "bytemuck")]
-        #[cfg_attr(doc_cfg, doc(cfg(feature = "bytemuck")))]
-        unsafe impl<const MIN: Inner, const MAX: Inner> bytemuck::Contiguous for Bounded<MIN, MAX> {
+        #[cfg(feature = "bytemuck1")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "bytemuck1")))]
+        unsafe impl<const MIN: Inner, const MAX: Inner> bytemuck1::Contiguous for Bounded<MIN, MAX> {
             type Int = Inner;
             const MAX_VALUE: Inner = MAX;
             const MIN_VALUE: Inner = MIN;
@@ -680,19 +680,19 @@ macro_rules! define_bounded_integers {
 
         // === Serde ===
 
-        #[cfg(feature = "serde")]
-        use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
+        #[cfg(feature = "serde1")]
+        use serde1::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
 
-        #[cfg(feature = "serde")]
-        #[cfg_attr(doc_cfg, doc(cfg(feature = "serde")))]
+        #[cfg(feature = "serde1")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "serde1")))]
         impl<const MIN: Inner, const MAX: Inner> Serialize for Bounded<MIN, MAX> {
             fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
                 self.get().serialize(serializer)
             }
         }
 
-        #[cfg(feature = "serde")]
-        #[cfg_attr(doc_cfg, doc(cfg(feature = "serde")))]
+        #[cfg(feature = "serde1")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "serde1")))]
         impl<'de, const MIN: Inner, const MAX: Inner> Deserialize<'de> for Bounded<MIN, MAX> {
             fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
                 Self::new(Inner::deserialize(deserializer)?)

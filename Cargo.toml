@@ -12,10 +12,10 @@ edition = "2018"
 [dependencies]
 bounded-integer-macro = { path = "./macro", version = "=0.5.0", optional = true }
 
-arbitrary = { version = "1.0.2", optional = true }
-bytemuck = { version = "1.7.2", optional = true }
-serde = { version = "1.0.124", default-features = false, optional = true }
-zerocopy = { version = "0.6", optional = true }
+arbitrary1 = { package = "arbitrary", version = "1.0.2", optional = true }
+bytemuck1 = { package = "bytemuck", version = "1.7.2", optional = true }
+serde1 = { package = "serde", version = "1.0.124", default-features = false, optional = true }
+zerocopy06 = { package = "zerocopy", version = "0.6", optional = true }
 
 [features]
 std = []
@@ -26,6 +26,8 @@ macro = ["bounded-integer-macro"]
 __examples = ["macro", "bounded-integer-macro/generate_tests"]
 
 step_trait = []
+
+serde = ["serde1"]
 
 [package.metadata.docs.rs]
 all-features = true

@@ -66,10 +66,10 @@ struct BoundedInteger {
     crate_path: TokenStream,
 
     // Optional features
-    arbitrary: bool,
-    bytemuck: bool,
-    serde: bool,
-    zerocopy: bool,
+    arbitrary1: bool,
+    bytemuck1: bool,
+    serde1: bool,
+    zerocopy06: bool,
     step_trait: bool,
 
     // The item itself
@@ -86,10 +86,10 @@ impl Parse for BoundedInteger {
     fn parse(input: ParseStream<'_>) -> parse::Result<Self> {
         let crate_path = input.parse::<Group>()?.stream();
 
-        let arbitrary = input.parse::<LitBool>()?.value;
-        let bytemuck = input.parse::<LitBool>()?.value;
-        let serde = input.parse::<LitBool>()?.value;
-        let zerocopy = input.parse::<LitBool>()?.value;
+        let arbitrary1 = input.parse::<LitBool>()?.value;
+        let bytemuck1 = input.parse::<LitBool>()?.value;
+        let serde1 = input.parse::<LitBool>()?.value;
+        let zerocopy06 = input.parse::<LitBool>()?.value;
         let step_trait = input.parse::<LitBool>()?.value;
 
         let mut attrs = input.call(Attribute::parse_outer)?;
@@ -164,10 +164,10 @@ impl Parse for BoundedInteger {
 
         Ok(Self {
             crate_path,
-            arbitrary,
-            bytemuck,
-            serde,
-            zerocopy,
+            arbitrary1,
+            bytemuck1,
+            serde1,
+            zerocopy06,
             step_trait,
             attrs,
             repr,

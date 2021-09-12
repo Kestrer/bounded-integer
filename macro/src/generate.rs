@@ -19,14 +19,14 @@ pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
     generate_from_str(item, tokens);
     generate_fmt_traits(item, tokens);
     generate_to_primitive_traits(item, tokens);
-    if item.arbitrary {
-        generate_arbitrary(item, tokens);
+    if item.arbitrary1 {
+        generate_arbitrary1(item, tokens);
     }
-    if item.bytemuck {
-        generate_bytemuck(item, tokens);
+    if item.bytemuck1 {
+        generate_bytemuck1(item, tokens);
     }
-    if item.serde {
-        generate_serde(item, tokens);
+    if item.serde1 {
+        generate_serde1(item, tokens);
     }
 
     if cfg!(feature = "generate_tests") {
@@ -38,13 +38,13 @@ fn generate_item(item: &BoundedInteger, tokens: &mut TokenStream) {
     let repr = &item.repr;
     let crate_path = &item.crate_path;
 
-    if item.zerocopy {
-        let zerocopy = quote!(#crate_path::__private::zerocopy);
+    if item.zerocopy06 {
+        let zerocopy = quote!(#crate_path::__private::zerocopy06);
 
         // Zerocopy is not hygienic: https://bugs.fuchsia.dev/p/fuchsia/issues/detail?id=84476
         tokens.extend(quote! {
             use ::core::marker::Sized;
-            use #zerocopy;
+            use #zerocopy as zerocopy;
         });
 
         tokens.extend(quote!(#[derive(#zerocopy::AsBytes)]));
@@ -945,11 +945,11 @@ fn generate_to_primitive_traits(item: &BoundedInteger, tokens: &mut TokenStream)
     }
 }
 
-fn generate_arbitrary(item: &BoundedInteger, tokens: &mut TokenStream) {
+fn generate_arbitrary1(item: &BoundedInteger, tokens: &mut TokenStream) {
     let ident = &item.ident;
     let repr = &item.repr;
     let crate_path = &item.crate_path;
-    let arbitrary = quote!(#crate_path::__private::arbitrary);
+    let arbitrary = quote!(#crate_path::__private::arbitrary1);
 
     tokens.extend(quote! {
         impl<'a> #arbitrary::Arbitrary<'a> for #ident {
@@ -967,11 +967,11 @@ fn generate_arbitrary(item: &BoundedInteger, tokens: &mut TokenStream) {
     });
 }
 
-fn generate_bytemuck(item: &BoundedInteger, tokens: &mut TokenStream) {
+fn generate_bytemuck1(item: &BoundedInteger, tokens: &mut TokenStream) {
     let ident = &item.ident;
     let repr = &item.repr;
     let crate_path = &item.crate_path;
-    let bytemuck = quote!(#crate_path::__private::bytemuck);
+    let bytemuck = quote!(#crate_path::__private::bytemuck1);
 
     tokens.extend(quote! {
         unsafe impl #bytemuck::Contiguous for #ident {
@@ -988,11 +988,11 @@ fn generate_bytemuck(item: &BoundedInteger, tokens: &mut TokenStream) {
     }
 }
 
-fn generate_serde(item: &BoundedInteger, tokens: &mut TokenStream) {
+fn generate_serde1(item: &BoundedInteger, tokens: &mut TokenStream) {
     let ident = &item.ident;
     let repr = &item.repr;
     let crate_path = &item.crate_path;
-    let serde = quote!(#crate_path::__private::serde);
+    let serde = quote!(#crate_path::__private::serde1);
 
     tokens.extend(quote! {
         impl #serde::Serialize for #ident {

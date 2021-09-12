@@ -48,13 +48,13 @@
 //! - `std`: Implement traits from `std`, such as [`Error`] on [`ParseError`].
 //! - `macro`: Enable the [`bounded_integer!`] macro.
 //! - `types`: Enable the bounded integer types that use const generics.
-//! - `arbitrary`: Implement [`Arbitrary`] for the bounded integers. This is useful when using
+//! - `arbitrary1`: Implement [`Arbitrary`] for the bounded integers. This is useful when using
 //! bounded integers as fuzzing inputs.
-//! - `bytemuck`: Implement [`Contiguous`] for all bounded integers, and [`Zeroable`] for
+//! - `bytemuck1`: Implement [`Contiguous`] for all bounded integers, and [`Zeroable`] for
 //! macro-generated bounded integers that support it.
-//! - `serde`: Implement [`Serialize`] and [`Deserialize`] for the bounded integers, making sure all
-//! values will never be out of bounds.
-//! - `zerocopy`: Implement [`AsBytes`] and [`Unaligned`] for macro-generated bounded integers. We
+//! - `serde1`: Implement [`Serialize`] and [`Deserialize`] for the bounded integers, making sure all
+//! values will never be out of bounds. This has a deprecated alias `serde`.
+//! - `zerocopy06`: Implement [`AsBytes`] and [`Unaligned`] for macro-generated bounded integers. We
 //! can't implement them for const generic bounded integers due to [limitations in
 //! Zerocopy](https://bugs.fuchsia.dev/p/fuchsia/issues/detail?id=84475).
 //! - `step_trait`: Implement the [`Step`] trait which allows the bounded integers to be easily used
@@ -92,17 +92,17 @@ pub use parse::{ParseError, ParseErrorKind};
 #[doc(hidden)]
 #[cfg(feature = "macro")]
 pub mod __private {
-    #[cfg(feature = "arbitrary")]
-    pub use ::arbitrary;
+    #[cfg(feature = "arbitrary1")]
+    pub use ::arbitrary1;
 
-    #[cfg(feature = "bytemuck")]
-    pub use ::bytemuck;
+    #[cfg(feature = "bytemuck1")]
+    pub use ::bytemuck1;
 
-    #[cfg(feature = "serde")]
-    pub use ::serde;
+    #[cfg(feature = "serde1")]
+    pub use ::serde1;
 
-    #[cfg(feature = "zerocopy")]
-    pub use ::zerocopy;
+    #[cfg(feature = "zerocopy06")]
+    pub use ::zerocopy06;
 
     pub use bounded_integer_macro::bounded_integer as proc_macro;
 
@@ -204,10 +204,10 @@ macro_rules! bounded_integer {
 
 #[cfg(feature = "macro")]
 block! {
-    let arbitrary: ident = cfg_bool!(feature = "arbitrary");
-    let bytemuck: ident = cfg_bool!(feature = "bytemuck");
-    let serde: ident = cfg_bool!(feature = "serde");
-    let zerocopy: ident = cfg_bool!(feature = "zerocopy");
+    let arbitrary1: ident = cfg_bool!(feature = "arbitrary1");
+    let bytemuck1: ident = cfg_bool!(feature = "bytemuck1");
+    let serde1: ident = cfg_bool!(feature = "serde1");
+    let zerocopy06: ident = cfg_bool!(feature = "zerocopy06");
     let step_trait: ident = cfg_bool!(feature = "step_trait");
     let d: tt = dollar!();
 
@@ -216,7 +216,7 @@ block! {
     macro_rules! __bounded_integer_inner2 {
         ($d($d tt:tt)*) => {
             $crate::__private::proc_macro! {
-                [$crate] $arbitrary $bytemuck $serde $zerocopy $step_trait $d($d tt)*
+                [$crate] $arbitrary1 $bytemuck1 $serde1 $zerocopy06 $step_trait $d($d tt)*
             }
         };
     }
