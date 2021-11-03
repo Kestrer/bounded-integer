@@ -7,7 +7,7 @@ keywords = ["bounded", "integer", "macro", "refinement"]
 license = "ISC"
 repository = "https://github.com/Kestrer/bounded-integer"
 readme = "README.md"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 bounded-integer-macro = { path = "./macro", version = "=0.5.0", optional = true }
