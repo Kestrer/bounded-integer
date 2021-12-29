@@ -678,6 +678,284 @@ macro_rules! define_bounded_integers {
             const MIN_VALUE: Inner = MIN;
         }
 
+        // === Num ===
+
+        #[cfg(feature = "num-traits02")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "num-traits02")))]
+        impl<const MIN: Inner, const MAX: Inner> num_traits02::Bounded for Bounded<MIN, MAX> {
+            fn min_value() -> Self {
+                Self::MIN
+            }
+
+            fn max_value() -> Self {
+                Self::MAX
+            }
+        }
+
+        #[cfg(feature = "num-traits02")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "num-traits02")))]
+        impl<T, const MIN: Inner, const MAX: Inner> num_traits02::AsPrimitive<T>
+            for Bounded<MIN, MAX>
+        where
+            Inner: num_traits02::AsPrimitive<T>,
+            T: 'static + Copy,
+        {
+            fn as_(self) -> T {
+                self.get().as_()
+            }
+        }
+
+        #[cfg(feature = "num-traits02")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "num-traits02")))]
+        impl<const MIN: Inner, const MAX: Inner> num_traits02::FromPrimitive for Bounded<MIN, MAX>
+        where
+            Inner: num_traits02::FromPrimitive,
+        {
+            fn from_i64(n: i64) -> Option<Self> {
+                Inner::from_i64(n)
+                    .map(Self::new)
+                    .flatten()
+            }
+
+            fn from_u64(n: u64) -> Option<Self> {
+                Inner::from_u64(n)
+                    .map(Self::new)
+                    .flatten()
+            }
+
+            fn from_isize(n: isize) -> Option<Self> {
+                Inner::from_isize(n)
+                    .map(Self::new)
+                    .flatten()
+            }
+
+            fn from_i8(n: i8) -> Option<Self> {
+                Inner::from_i8(n)
+                    .map(Self::new)
+                    .flatten()
+            }
+
+            fn from_i16(n: i16) -> Option<Self> {
+                Inner::from_i16(n)
+                    .map(Self::new)
+                    .flatten()
+            }
+
+            fn from_i32(n: i32) -> Option<Self> {
+                Inner::from_i32(n)
+                    .map(Self::new)
+                    .flatten()
+            }
+
+            fn from_i128(n: i128) -> Option<Self> {
+                Inner::from_i128(n)
+                    .map(Self::new)
+                    .flatten()
+            }
+
+            fn from_usize(n: usize) -> Option<Self> {
+                Inner::from_usize(n)
+                    .map(Self::new)
+                    .flatten()
+            }
+
+            fn from_u8(n: u8) -> Option<Self> {
+                Inner::from_u8(n)
+                    .map(Self::new)
+                    .flatten()
+            }
+
+            fn from_u16(n: u16) -> Option<Self> {
+                Inner::from_u16(n)
+                    .map(Self::new)
+                    .flatten()
+            }
+
+            fn from_u32(n: u32) -> Option<Self> {
+                Inner::from_u32(n)
+                    .map(Self::new)
+                    .flatten()
+            }
+
+            fn from_u128(n: u128) -> Option<Self> {
+                Inner::from_u128(n)
+                    .map(Self::new)
+                    .flatten()
+            }
+
+            fn from_f32(n: f32) -> Option<Self> {
+                Inner::from_f32(n)
+                    .map(Self::new)
+                    .flatten()
+            }
+
+            fn from_f64(n: f64) -> Option<Self> {
+                Inner::from_f64(n)
+                    .map(Self::new)
+                    .flatten()
+            }
+        }
+
+        #[cfg(feature = "num-traits02")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "num-traits02")))]
+        impl<const MIN: Inner, const MAX: Inner> num_traits02::NumCast for Bounded<MIN, MAX>
+        where
+            Inner: num_traits02::NumCast,
+        {
+            fn from<T: num_traits02::ToPrimitive>(n: T) -> Option<Self> {
+                <Inner as num_traits02::NumCast>::from(n).map(Self::new).flatten()
+            }
+        }
+
+        #[cfg(feature = "num-traits02")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "num-traits02")))]
+        impl<const MIN: Inner, const MAX: Inner> num_traits02::ToPrimitive for Bounded<MIN, MAX>
+        where
+            Inner: num_traits02::ToPrimitive,
+        {
+            fn to_i64(&self) -> Option<i64> {
+                self.get().to_i64()
+            }
+
+            fn to_u64(&self) -> Option<u64> {
+                self.get().to_u64()
+            }
+
+            fn to_isize(&self) -> Option<isize> {
+                self.get().to_isize()
+            }
+
+            fn to_i8(&self) -> Option<i8> {
+                self.get().to_i8()
+            }
+
+            fn to_i16(&self) -> Option<i16> {
+                self.get().to_i16()
+            }
+
+            fn to_i32(&self) -> Option<i32> {
+                self.get().to_i32()
+            }
+
+            fn to_i128(&self) -> Option<i128> {
+                self.get().to_i128()
+            }
+
+            fn to_usize(&self) -> Option<usize> {
+                self.get().to_usize()
+            }
+
+            fn to_u8(&self) -> Option<u8> {
+                self.get().to_u8()
+            }
+
+            fn to_u16(&self) -> Option<u16> {
+                self.get().to_u16()
+            }
+
+            fn to_u32(&self) -> Option<u32> {
+                self.get().to_u32()
+            }
+
+            fn to_u128(&self) -> Option<u128> {
+                self.get().to_u128()
+            }
+
+            fn to_f32(&self) -> Option<f32> {
+                self.get().to_f32()
+            }
+
+            fn to_f64(&self) -> Option<f64> {
+                self.get().to_f64()
+            }
+        }
+
+        #[cfg(feature = "num-traits02")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "num-traits02")))]
+        impl<const MIN: Inner, const MAX: Inner> num_traits02::CheckedAdd for Bounded<MIN, MAX> {
+            fn checked_add(&self, v: &Self) -> Option<Self> {
+                Self::checked_add(*self, v.get())
+            }
+        }
+
+        #[cfg(feature = "num-traits02")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "num-traits02")))]
+        impl<const MIN: Inner, const MAX: Inner> num_traits02::CheckedDiv for Bounded<MIN, MAX> {
+            fn checked_div(&self, v: &Self) -> Option<Self> {
+                Self::checked_div(*self, v.get())
+            }
+        }
+
+        #[cfg(feature = "num-traits02")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "num-traits02")))]
+        impl<const MIN: Inner, const MAX: Inner> num_traits02::CheckedMul for Bounded<MIN, MAX> {
+            fn checked_mul(&self, v: &Self) -> Option<Self> {
+                Self::checked_mul(*self, v.get())
+            }
+        }
+
+        #[cfg(feature = "num-traits02")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "num-traits02")))]
+        impl<const MIN: Inner, const MAX: Inner> num_traits02::CheckedNeg for Bounded<MIN, MAX> {
+            fn checked_neg(&self) -> Option<Self> {
+                Self::checked_neg(*self)
+            }
+        }
+
+        #[cfg(feature = "num-traits02")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "num-traits02")))]
+        impl<const MIN: Inner, const MAX: Inner> num_traits02::CheckedRem for Bounded<MIN, MAX> {
+            fn checked_rem(&self, v: &Self) -> Option<Self> {
+                Self::checked_rem(*self, v.get())
+            }
+        }
+
+        #[cfg(feature = "num-traits02")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "num-traits02")))]
+        impl<const MIN: Inner, const MAX: Inner> num_traits02::CheckedSub for Bounded<MIN, MAX> {
+            fn checked_sub(&self, v: &Self) -> Option<Self> {
+                Self::checked_sub(*self, v.get())
+            }
+        }
+
+        #[cfg(feature = "num-traits02")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "num-traits02")))]
+        impl<A, B, const MIN: Inner, const MAX: Inner> num_traits02::MulAdd<A, B>
+            for Bounded<MIN, MAX>
+        where
+            Inner: num_traits02::MulAdd<A, B, Output = Inner>,
+        {
+            type Output = Inner;
+
+            fn mul_add(self, a: A, b: B) -> Self::Output {
+                self.get().mul_add(a, b)
+            }
+        }
+
+        #[cfg(feature = "num-traits02")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "num-traits02")))]
+        impl<const MIN: Inner, const MAX: Inner> num_traits02::SaturatingAdd for Bounded<MIN, MAX> {
+            fn saturating_add(&self, v: &Self) -> Self {
+                Self::saturating_add(*self, v.get())
+            }
+        }
+
+        #[cfg(feature = "num-traits02")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "num-traits02")))]
+        impl<const MIN: Inner, const MAX: Inner> num_traits02::SaturatingMul for Bounded<MIN, MAX> {
+            fn saturating_mul(&self, v: &Self) -> Self {
+                Self::saturating_mul(*self, v.get())
+            }
+        }
+
+        #[cfg(feature = "num-traits02")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "num-traits02")))]
+        impl<const MIN: Inner, const MAX: Inner> num_traits02::SaturatingSub for Bounded<MIN, MAX> {
+            fn saturating_sub(&self, v: &Self) -> Self {
+                Self::saturating_sub(*self, v.get())
+            }
+        }
+
         // === Serde ===
 
         #[cfg(feature = "serde1")]
@@ -833,6 +1111,143 @@ macro_rules! define_bounded_integers {
                 assert_eq!("O".parse::<Bounded>().unwrap_err().kind(), InvalidDigit);
                 assert_eq!("C".parse::<Bounded>().unwrap_err().kind(), InvalidDigit);
                 assert_eq!(Bounded::from_str_radix("3", 2).unwrap_err().kind(), InvalidDigit);
+            }
+
+            #[test]
+            #[cfg(feature = "num-traits02")]
+            fn num() {
+                use num_traits02::{
+                    Bounded, AsPrimitive, FromPrimitive, NumCast, ToPrimitive, CheckedAdd,
+                    CheckedDiv, CheckedMul, CheckedNeg, CheckedRem, CheckedSub
+                };
+
+                type B = super::Bounded<2, 8>;
+                type BNeg = super::Bounded<{0 $($(if $signed)? - 4)?}, 8>;
+
+                fn b(n: Inner) -> B {
+                    B::new(n).unwrap()
+                }
+
+                fn bneg(n: Inner) -> BNeg {
+                    BNeg::new(n).unwrap()
+                }
+
+                assert_eq!(B::min_value(), 2);
+                assert_eq!(B::max_value(), 8);
+
+                assert_eq!(BNeg::min_value(), 0 $($(if $signed)? - 4)?);
+                assert_eq!(BNeg::max_value(), 8);
+
+                assert_eq!(<B as AsPrimitive<u8>>::as_(b(4)), 4u8);
+                assert_eq!(<B as AsPrimitive<u16>>::as_(b(4)), 4u16);
+                assert_eq!(<B as AsPrimitive<u32>>::as_(b(4)), 4u32);
+                assert_eq!(<B as AsPrimitive<u64>>::as_(b(4)), 4u64);
+                assert_eq!(<B as AsPrimitive<u128>>::as_(b(4)), 4u128);
+                assert_eq!(<B as AsPrimitive<usize>>::as_(b(4)), 4usize);
+                assert_eq!(<B as AsPrimitive<i8>>::as_(b(4)), 4i8);
+                assert_eq!(<B as AsPrimitive<i16>>::as_(b(4)), 4i16);
+                assert_eq!(<B as AsPrimitive<i32>>::as_(b(4)), 4i32);
+                assert_eq!(<B as AsPrimitive<i64>>::as_(b(4)), 4i64);
+                assert_eq!(<B as AsPrimitive<i128>>::as_(b(4)), 4i128);
+                assert_eq!(<B as AsPrimitive<isize>>::as_(b(4)), 4isize);
+                assert_eq!(<B as AsPrimitive<f32>>::as_(b(4)), 4f32);
+                assert_eq!(<B as AsPrimitive<f64>>::as_(b(4)), 4f64);
+
+                assert_eq!(B::from_u8(4u8), Some(b(4)));
+                assert_eq!(B::from_u16(4u16), Some(b(4)));
+                assert_eq!(B::from_u32(4u32), Some(b(4)));
+                assert_eq!(B::from_u64(4u64), Some(b(4)));
+                assert_eq!(B::from_u128(4u128), Some(b(4)));
+                assert_eq!(B::from_usize(4usize), Some(b(4)));
+                assert_eq!(B::from_i8(4i8), Some(b(4)));
+                assert_eq!(B::from_i16(4i16), Some(b(4)));
+                assert_eq!(B::from_i32(4i32), Some(b(4)));
+                assert_eq!(B::from_i64(4i64), Some(b(4)));
+                assert_eq!(B::from_i128(4i128), Some(b(4)));
+                assert_eq!(B::from_isize(4isize), Some(b(4)));
+                assert_eq!(B::from_f32(4f32), Some(b(4)));
+                assert_eq!(B::from_f64(4f64), Some(b(4)));
+
+                assert_eq!(B::from_u8(16u8), None);
+                assert_eq!(B::from_u16(16u16), None);
+                assert_eq!(B::from_u32(16u32), None);
+                assert_eq!(B::from_u64(16u64), None);
+                assert_eq!(B::from_u128(16u128), None);
+                assert_eq!(B::from_usize(16usize), None);
+                assert_eq!(B::from_i8(16i8), None);
+                assert_eq!(B::from_i16(16i16), None);
+                assert_eq!(B::from_i32(16i32), None);
+                assert_eq!(B::from_i64(16i64), None);
+                assert_eq!(B::from_i128(16i128), None);
+                assert_eq!(B::from_isize(16isize), None);
+                assert_eq!(B::from_f32(16f32), None);
+                assert_eq!(B::from_f64(16f64), None);
+
+                assert_eq!(<B as NumCast>::from(4u8), Some(b(4)));
+                assert_eq!(<B as NumCast>::from(4u16), Some(b(4)));
+                assert_eq!(<B as NumCast>::from(4u32), Some(b(4)));
+                assert_eq!(<B as NumCast>::from(4u64), Some(b(4)));
+                assert_eq!(<B as NumCast>::from(4u128), Some(b(4)));
+                assert_eq!(<B as NumCast>::from(4usize), Some(b(4)));
+                assert_eq!(<B as NumCast>::from(4i8), Some(b(4)));
+                assert_eq!(<B as NumCast>::from(4i16), Some(b(4)));
+                assert_eq!(<B as NumCast>::from(4i32), Some(b(4)));
+                assert_eq!(<B as NumCast>::from(4i64), Some(b(4)));
+                assert_eq!(<B as NumCast>::from(4i128), Some(b(4)));
+                assert_eq!(<B as NumCast>::from(4isize), Some(b(4)));
+                assert_eq!(<B as NumCast>::from(4f32), Some(b(4)));
+                assert_eq!(<B as NumCast>::from(4f64), Some(b(4)));
+
+                assert_eq!(<B as NumCast>::from(16u8), None);
+                assert_eq!(<B as NumCast>::from(16u16), None);
+                assert_eq!(<B as NumCast>::from(16u32), None);
+                assert_eq!(<B as NumCast>::from(16u64), None);
+                assert_eq!(<B as NumCast>::from(16u128), None);
+                assert_eq!(<B as NumCast>::from(16usize), None);
+                assert_eq!(<B as NumCast>::from(16i8), None);
+                assert_eq!(<B as NumCast>::from(16i16), None);
+                assert_eq!(<B as NumCast>::from(16i32), None);
+                assert_eq!(<B as NumCast>::from(16i64), None);
+                assert_eq!(<B as NumCast>::from(16i128), None);
+                assert_eq!(<B as NumCast>::from(16isize), None);
+                assert_eq!(<B as NumCast>::from(16f32), None);
+                assert_eq!(<B as NumCast>::from(16f64), None);
+
+                assert_eq!(b(4).to_u8(), Some(4u8));
+                assert_eq!(b(4).to_u16(), Some(4u16));
+                assert_eq!(b(4).to_u32(), Some(4u32));
+                assert_eq!(b(4).to_u64(), Some(4u64));
+                assert_eq!(b(4).to_u128(), Some(4u128));
+                assert_eq!(b(4).to_usize(), Some(4usize));
+                assert_eq!(b(4).to_i8(), Some(4i8));
+                assert_eq!(b(4).to_i16(), Some(4i16));
+                assert_eq!(b(4).to_i32(), Some(4i32));
+                assert_eq!(b(4).to_i64(), Some(4i64));
+                assert_eq!(b(4).to_i128(), Some(4i128));
+                assert_eq!(b(4).to_isize(), Some(4isize));
+                assert_eq!(b(4).to_f32(), Some(4f32));
+                assert_eq!(b(4).to_f64(), Some(4f64));
+
+                assert_eq!(<B as CheckedAdd>::checked_add(&b(4), &b(4)), Some(b(8)));
+                assert_eq!(<B as CheckedAdd>::checked_add(&b(4), &b(8)), None);
+
+                assert_eq!(<B as CheckedDiv>::checked_div(&b(8), &b(2)), Some(b(4)));
+                assert_eq!(<B as CheckedDiv>::checked_div(&b(4), &b(4)), None);
+
+                assert_eq!(<B as CheckedMul>::checked_mul(&b(2), &b(2)), Some(b(4)));
+                assert_eq!(<B as CheckedMul>::checked_mul(&b(2), &b(8)), None);
+
+                $($(if $signed)? {
+                    assert_eq!(<BNeg as CheckedNeg>::checked_neg(&bneg(2)), Some(bneg(-2)));
+                })?
+
+                assert_eq!(<BNeg as CheckedNeg>::checked_neg(&bneg(8)), None);
+
+                assert_eq!(<B as CheckedRem>::checked_rem(&b(8), &b(6)), Some(b(2)));
+                assert_eq!(<B as CheckedRem>::checked_rem(&b(8), &b(7)), None);
+
+                assert_eq!(<B as CheckedSub>::checked_sub(&b(4), &b(2)), Some(b(2)));
+                assert_eq!(<B as CheckedSub>::checked_sub(&b(4), &b(4)), None);
             }
         }
     } pub use self::$inner::Bounded as $name; )* }
