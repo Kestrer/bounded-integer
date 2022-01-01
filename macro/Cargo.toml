@@ -1,6 +1,6 @@
 [package]
 name = "bounded-integer-macro"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["Kestrer <kestrer.dev@gmail.com>"]
 description = "Proc macro for `bounded-integer`. Do not use directly."
 keywords = ["bounded", "integer", "macro", "refinement"]
