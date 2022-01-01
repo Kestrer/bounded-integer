@@ -52,6 +52,10 @@
 //! bounded integers as fuzzing inputs.
 //! - `bytemuck1`: Implement [`Contiguous`] for all bounded integers, and [`Zeroable`] for
 //! macro-generated bounded integers that support it.
+//! - `num-traits02`: Implement [`Bounded`], [`AsPrimitive`], [`FromPrimitive`], [`NumCast`],
+//! [`ToPrimitive`], [`CheckedAdd`], [`CheckedDiv`], [`CheckedMul`], [`CheckedNeg`], [`CheckedRem`],
+//! [`CheckedSub`], [`MulAdd`], [`SaturatingAdd`], [`SaturatingMul`] and [`SaturatingSub`] for all
+//! const-generic bounded integers.
 //! - `serde1`: Implement [`Serialize`] and [`Deserialize`] for the bounded integers, making sure all
 //! values will never be out of bounds. This has a deprecated alias `serde`.
 //! - `zerocopy06`: Implement [`AsBytes`] and [`Unaligned`] for macro-generated bounded integers. We
@@ -66,6 +70,21 @@
 //! [`Arbitrary`]: https://docs.rs/arbitrary/1/arbitrary/trait.Arbitrary.html
 //! [`Contiguous`]: https://docs.rs/bytemuck/1/bytemuck/trait.Contiguous.html
 //! [`Zeroable`]: https://docs.rs/bytemuck/1/bytemuck/trait.Zeroable.html
+//! [`Bounded`]: https://docs.rs/num-traits/0.2/num_traits/bounds/trait.Bounded.html
+//! [`AsPrimitive`]: https://docs.rs/num-traits/0.2/num_traits/cast/trait.AsPrimitive.html
+//! [`FromPrimitive`]: https://docs.rs/num-traits/0.2/num_traits/cast/trait.FromPrimitive.html
+//! [`NumCast`]: https://docs.rs/num-traits/0.2/num_traits/cast/trait.NumCast.html
+//! [`ToPrimitive`]: https://docs.rs/num-traits/0.2/num_traits/cast/trait.ToPrimitive.html
+//! [`CheckedAdd`]: https://docs.rs/num-traits/0.2/num_traits/ops/checked/trait.CheckedAdd.html
+//! [`CheckedDiv`]: https://docs.rs/num-traits/0.2/num_traits/ops/checked/trait.CheckedDiv.html
+//! [`CheckedMul`]: https://docs.rs/num-traits/0.2/num_traits/ops/checked/trait.CheckedMul.html
+//! [`CheckedNeg`]: https://docs.rs/num-traits/0.2/num_traits/ops/checked/trait.CheckedNeg.html
+//! [`CheckedRem`]: https://docs.rs/num-traits/0.2/num_traits/ops/checked/trait.CheckedRem.html
+//! [`CheckedSub`]: https://docs.rs/num-traits/0.2/num_traits/ops/checked/trait.CheckedSub.html
+//! [`MulAdd`]: https://docs.rs/num-traits/0.2/num_traits/ops/mul_add/trait.MulAdd.html
+//! [`SaturatingAdd`]: https://docs.rs/num-traits/0.2/num_traits/ops/saturating/trait.SaturatingAdd.html
+//! [`SaturatingMul`]: https://docs.rs/num-traits/0.2/num_traits/ops/saturating/trait.SaturatingMul.html
+//! [`SaturatingSub`]: https://docs.rs/num-traits/0.2/num_traits/ops/saturating/trait.SaturatingSub.html
 //! [`Serialize`]: https://docs.rs/serde/1/serde/trait.Serialize.html
 //! [`Deserialize`]: https://docs.rs/serde/1/serde/trait.Deserialize.html
 //! [`AsBytes`]: https://docs.rs/zerocopy/0.6/zerocopy/trait.AsBytes.html
