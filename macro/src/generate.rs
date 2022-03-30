@@ -187,12 +187,9 @@ fn generate_unchecked_constructors(item: &BoundedInteger, tokens: &mut TokenStre
     let repr = &item.repr;
     let vis = &item.vis;
 
-    let (new_unchecked_const, new_unchecked_body) = match item.kind {
-        Kind::Struct(_) => (Some(Token![const](Span::call_site())), quote!(Self(n))),
-        Kind::Enum(_) => (
-            None,
-            quote!(::core::mem::transmute::<::core::primitive::#repr, Self>(n)),
-        ),
+    let new_unchecked_body = match item.kind {
+        Kind::Struct(_) => quote!(Self(n)),
+        Kind::Enum(_) => quote!(::core::mem::transmute::<::core::primitive::#repr, Self>(n)),
     };
 
     let safety_doc = "
@@ -206,7 +203,7 @@ The value must not be outside the valid range of values; it must not be less tha
         /// Creates a bounded integer without checking the value.
         #[doc = #safety_doc]
         #[must_use]
-        #vis #new_unchecked_const unsafe fn new_unchecked(n: ::core::primitive::#repr) -> Self {
+        #vis const unsafe fn new_unchecked(n: ::core::primitive::#repr) -> Self {
             #new_unchecked_body
         }
 
@@ -420,8 +417,12 @@ fn generate_inherent_operators(item: &BoundedInteger, tokens: &mut TokenStream) 
             /// Computes the absolute value of `self`, panicking if it is out of range.
             #[must_use]
             #[inline]
-            #vis fn abs(self) -> Self {
-                Self::new(self.get().abs()).expect("Absolute value out of range")
+            #vis const fn abs(self) -> Self {
+                // TODO: expect isn't stable as const fn yet
+                match Self::new(self.get().abs()) {
+                    ::core::option::Option::Some(val) => val,
+                    ::core::option::Option::None => ::core::panic!("Absolute value out of range"),
+                }
             }
         });
     }
@@ -431,23 +432,33 @@ fn generate_inherent_operators(item: &BoundedInteger, tokens: &mut TokenStream) 
         /// is out of range.
         #[must_use]
         #[inline]
-        #vis fn pow(self, exp: ::core::primitive::u32) -> Self {
-            Self::new(self.get().pow(exp)).expect("Value raised to power out of range")
+        #vis const fn pow(self, exp: ::core::primitive::u32) -> Self {
+            // TODO: expect isn't stable as const fn yet
+            match Self::new(self.get().pow(exp)) {
+                ::core::option::Option::Some(val) => val,
+                ::core::option::Option::None => ::core::panic!("Value raised to power out of range"),
+            }
         }
         /// Calculates the quotient of Euclidean division of `self` by `rhs`. Panics if `rhs`
         /// is 0 or the result is out of range.
         #[must_use]
         #[inline]
-        #vis fn div_euclid(self, rhs: ::core::primitive::#repr) -> Self {
-            Self::new(self.get().div_euclid(rhs)).expect("Attempted to divide out of range")
+        #vis const fn div_euclid(self, rhs: ::core::primitive::#repr) -> Self {
+            // TODO: expect isn't stable as const fn yet
+            match Self::new(self.get().div_euclid(rhs)) {
+                ::core::option::Option::Some(val) => val,
+                ::core::option::Option::None => ::core::panic!("Attempted to divide out of range"),
+            }
         }
         /// Calculates the least nonnegative remainder of `self (mod rhs)`. Panics if `rhs` is 0
         /// or the result is out of range.
         #[must_use]
         #[inline]
-        #vis fn rem_euclid(self, rhs: ::core::primitive::#repr) -> Self {
-            Self::new(self.get().rem_euclid(rhs))
-                .expect("Attempted to divide with remainder out of range")
+        #vis const fn rem_euclid(self, rhs: ::core::primitive::#repr) -> Self {
+            match Self::new(self.get().rem_euclid(rhs)) {
+                ::core::option::Option::Some(val) => val,
+                ::core::option::Option::None => ::core::panic!("Attempted to divide with remainder out of range"),
+            }
         }
     });
 }
@@ -625,8 +636,11 @@ fn generate_ops_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
                 &method,
                 &item.ident,
                 &quote! {
-                    Self::new(<#full_repr as ::core::ops::#trait_name>::#method(self.get()))
-                        .expect(::core::concat!("Attempted to ", #description, " out of range"))
+                    // TODO: expect isn't stable as const fn yet
+                    match Self::new(<#full_repr as ::core::ops::#trait_name>::#method(self.get())) {
+                        ::core::option::Option::Some(val) => val,
+                        ::core::option::Option::None => ::core::panic!(::core::concat!("Attempted to ", #description, " out of range")),
+                    }
                 },
                 tokens,
             );
