@@ -1,6 +1,6 @@
 [package]
 name = "bounded-integer"
-version = "0.5.1"
+version = "0.5.2"
 authors = ["Kestrer <kestrer.dev@gmail.com>"]
 description = "Bounded integers"
 keywords = ["bounded", "integer", "macro", "refinement"]
@@ -10,7 +10,7 @@ readme = "README.md"
 edition = "2021"
 
 [dependencies]
-bounded-integer-macro = { path = "./macro", version = "=0.5.1", optional = true }
+bounded-integer-macro = { path = "./macro", version = "=0.5.2", optional = true }
 
 arbitrary1 = { package = "arbitrary", version = "1.0.2", optional = true }
 bytemuck1 = { package = "bytemuck", version = "1.7.2", optional = true }
