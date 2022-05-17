@@ -4,7 +4,7 @@ use syn::Token;
 
 use num_bigint::BigInt;
 
-use crate::{BoundedInteger, Kind, ReprSize, ReprSizeFixed};
+use crate::{BoundedInteger, Kind, ReprSize, ReprSizeFixed, Signed, Unsigned};
 
 pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
     generate_item(item, tokens);
@@ -412,7 +412,7 @@ fn generate_inherent_operators(item: &BoundedInteger, tokens: &mut TokenStream) 
     let vis = &item.vis;
     let repr = &item.repr;
 
-    if item.repr.signed {
+    if item.repr.sign == Signed {
         tokens.extend(quote! {
             /// Computes the absolute value of `self`, panicking if it is out of range.
             #[must_use]
@@ -467,7 +467,7 @@ fn generate_checked_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
     let vis = &item.vis;
 
     for op in CHECKED_OPERATORS {
-        if !item.repr.signed && op.variants == OpVariants::Signed {
+        if item.repr.sign == Unsigned && op.variants == OpVariants::Signed {
             continue;
         }
 
@@ -501,7 +501,7 @@ fn generate_checked_operators(item: &BoundedInteger, tokens: &mut TokenStream) {
         });
 
         if op.variants == OpVariants::NoSaturating
-            || !item.repr.signed && op.variants == OpVariants::SignedSaturating
+            || item.repr.sign == Unsigned && op.variants == OpVariants::SignedSaturating
         {
             continue;
         }
@@ -578,7 +578,7 @@ fn generate_ops_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
     let full_repr = quote!(::core::primitive::#repr);
 
     for op in OPERATORS {
-        if !item.repr.signed && !op.on_unsigned {
+        if item.repr.sign == Unsigned && !op.on_unsigned {
             continue;
         }
 
@@ -1158,7 +1158,7 @@ fn generate_test_arithmetic(item: &BoundedInteger, tokens: &mut TokenStream) {
         });
     }
 
-    if item.repr.signed {
+    if item.repr.sign == Signed {
         body.extend(quote! {
             let _: #ident = #ident::MIN.abs();
             let _: Option<#ident> = #ident::MIN.checked_abs();

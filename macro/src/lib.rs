@@ -18,7 +18,7 @@ use syn::{BinOp, ExprBinary, ExprRange, ExprUnary, RangeLimits, UnOp};
 use syn::{ExprGroup, ExprParen};
 use syn::{ExprLit, Lit, LitBool};
 
-use num_bigint::{BigInt, TryFromBigIntError};
+use num_bigint::{BigInt, Sign, TryFromBigIntError};
 
 mod generate;
 
@@ -49,15 +49,6 @@ pub fn bounded_integer(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
         #import;
     )
     .into()
-}
-
-macro_rules! signed {
-    (unsigned) => {
-        false
-    };
-    (signed) => {
-        true
-    };
 }
 
 #[allow(clippy::struct_excessive_bools)]
@@ -129,7 +120,7 @@ impl Parse for BoundedInteger {
 
         let repr = match repr {
             Some(explicit_repr) => {
-                if !explicit_repr.signed && from.sign() == num_bigint::Sign::Minus {
+                if explicit_repr.sign == Unsigned && from.sign() == Sign::Minus {
                     return Err(Error::new_spanned(
                         from_expr,
                         "An unsigned integer cannot hold a negative value",
@@ -195,28 +186,37 @@ impl Parse for Kind {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ReprSign {
+    Signed,
+    Unsigned,
+}
+use ReprSign::{Signed, Unsigned};
+
 struct Repr {
-    signed: bool,
+    sign: ReprSign,
     size: ReprSize,
     name: Ident,
 }
 
 impl Repr {
-    fn new(signed: bool, size: ReprSize) -> Self {
+    fn new(sign: ReprSign, size: ReprSize) -> Self {
+        let prefix = match sign {
+            Signed => 'i',
+            Unsigned => 'u',
+        };
         Self {
-            signed,
+            sign,
             size,
-            name: Ident::new(
-                &format!("{}{}", if signed { 'i' } else { 'u' }, size),
-                Span::call_site(),
-            ),
+            name: Ident::new(&format!("{}{}", prefix, size), Span::call_site()),
         }
     }
 
     fn smallest_repr(min: &BigInt, max: &BigInt) -> Option<Self> {
-        Some(if min.sign() == num_bigint::Sign::Minus {
+        // NOTE: Never infer nonzero types, even if we can.
+        Some(if min.sign() == Sign::Minus {
             Self::new(
-                true,
+                Signed,
                 ReprSize::Fixed(cmp::max(
                     ReprSizeFixed::from_bits((min + 1_u8).bits() + 1)?,
                     ReprSizeFixed::from_bits(max.bits() + 1)?,
@@ -224,40 +224,24 @@ impl Repr {
             )
         } else {
             Self::new(
-                false,
+                Unsigned,
                 ReprSize::Fixed(ReprSizeFixed::from_bits(max.bits())?),
             )
         })
     }
 
     fn minimum(&self) -> Option<BigInt> {
-        Some(match (self.signed, self.size) {
-            (false, ReprSize::Fixed(ReprSizeFixed::Fixed8)) => BigInt::from(u8::MIN),
-            (false, ReprSize::Fixed(ReprSizeFixed::Fixed16)) => BigInt::from(u16::MIN),
-            (false, ReprSize::Fixed(ReprSizeFixed::Fixed32)) => BigInt::from(u32::MIN),
-            (false, ReprSize::Fixed(ReprSizeFixed::Fixed64)) => BigInt::from(u64::MIN),
-            (false, ReprSize::Fixed(ReprSizeFixed::Fixed128)) => BigInt::from(u128::MIN),
-            (true, ReprSize::Fixed(ReprSizeFixed::Fixed8)) => BigInt::from(i8::MIN),
-            (true, ReprSize::Fixed(ReprSizeFixed::Fixed16)) => BigInt::from(i16::MIN),
-            (true, ReprSize::Fixed(ReprSizeFixed::Fixed32)) => BigInt::from(i32::MIN),
-            (true, ReprSize::Fixed(ReprSizeFixed::Fixed64)) => BigInt::from(i64::MIN),
-            (true, ReprSize::Fixed(ReprSizeFixed::Fixed128)) => BigInt::from(i128::MIN),
+        Some(match (self.sign, self.size) {
+            (Unsigned, ReprSize::Fixed(_)) => BigInt::from(0u8),
+            (Signed, ReprSize::Fixed(size)) => -(BigInt::from(1u8) << (size.to_bits() - 1)),
             (_, ReprSize::Pointer) => return None,
         })
     }
 
     fn maximum(&self) -> Option<BigInt> {
-        Some(match (self.signed, self.size) {
-            (false, ReprSize::Fixed(ReprSizeFixed::Fixed8)) => BigInt::from(u8::MAX),
-            (false, ReprSize::Fixed(ReprSizeFixed::Fixed16)) => BigInt::from(u16::MAX),
-            (false, ReprSize::Fixed(ReprSizeFixed::Fixed32)) => BigInt::from(u32::MAX),
-            (false, ReprSize::Fixed(ReprSizeFixed::Fixed64)) => BigInt::from(u64::MAX),
-            (false, ReprSize::Fixed(ReprSizeFixed::Fixed128)) => BigInt::from(u128::MAX),
-            (true, ReprSize::Fixed(ReprSizeFixed::Fixed8)) => BigInt::from(i8::MAX),
-            (true, ReprSize::Fixed(ReprSizeFixed::Fixed16)) => BigInt::from(i16::MAX),
-            (true, ReprSize::Fixed(ReprSizeFixed::Fixed32)) => BigInt::from(i32::MAX),
-            (true, ReprSize::Fixed(ReprSizeFixed::Fixed64)) => BigInt::from(i64::MAX),
-            (true, ReprSize::Fixed(ReprSizeFixed::Fixed128)) => BigInt::from(i128::MAX),
+        Some(match (self.sign, self.size) {
+            (Unsigned, ReprSize::Fixed(size)) => (BigInt::from(1u8) << size.to_bits()) - 1,
+            (Signed, ReprSize::Fixed(size)) => (BigInt::from(1u8) << (size.to_bits() - 1)) - 1,
             (_, ReprSize::Pointer) => return None,
         })
     }
@@ -268,8 +252,8 @@ impl Repr {
     ) -> Result<Literal, TryFromBigIntError<()>> {
         macro_rules! match_repr {
             ($($sign:ident $size:ident $(($fixed:ident))? => $f:ident,)*) => {
-                match (self.signed, self.size) {
-                    $((signed!($sign), ReprSize::$size $((ReprSizeFixed::$fixed))?) => {
+                match (self.sign, self.size) {
+                    $(($sign, ReprSize::$size $((ReprSizeFixed::$fixed))?) => {
                         Ok(Literal::$f(value.borrow().try_into()?))
                     })*
                 }
@@ -277,18 +261,18 @@ impl Repr {
         }
 
         match_repr! {
-            unsigned Fixed(Fixed8) => u8_suffixed,
-            unsigned Fixed(Fixed16) => u16_suffixed,
-            unsigned Fixed(Fixed32) => u32_suffixed,
-            unsigned Fixed(Fixed64) => u64_suffixed,
-            unsigned Fixed(Fixed128) => u128_suffixed,
-            unsigned Pointer => usize_suffixed,
-            signed Fixed(Fixed8) => i8_suffixed,
-            signed Fixed(Fixed16) => i16_suffixed,
-            signed Fixed(Fixed32) => i32_suffixed,
-            signed Fixed(Fixed64) => i64_suffixed,
-            signed Fixed(Fixed128) => i128_suffixed,
-            signed Pointer => isize_suffixed,
+            Unsigned Fixed(Fixed8) => u8_suffixed,
+            Unsigned Fixed(Fixed16) => u16_suffixed,
+            Unsigned Fixed(Fixed32) => u32_suffixed,
+            Unsigned Fixed(Fixed64) => u64_suffixed,
+            Unsigned Fixed(Fixed128) => u128_suffixed,
+            Unsigned Pointer => usize_suffixed,
+            Signed Fixed(Fixed8) => i8_suffixed,
+            Signed Fixed(Fixed16) => i16_suffixed,
+            Signed Fixed(Fixed32) => i32_suffixed,
+            Signed Fixed(Fixed64) => i64_suffixed,
+            Signed Fixed(Fixed128) => i128_suffixed,
+            Signed Pointer => isize_suffixed,
         }
     }
 
@@ -297,20 +281,19 @@ impl Repr {
     }
 
     fn larger_reprs(&self) -> impl Iterator<Item = Self> {
-        if self.signed {
-            Either::A(self.size.larger_reprs().map(|size| Self::new(true, size)))
-        } else {
-            Either::B(
+        match self.sign {
+            Signed => Either::A(self.size.larger_reprs().map(|size| Self::new(Signed, size))),
+            Unsigned => Either::B(
                 self.size
                     .larger_reprs()
-                    .map(|size| Self::new(false, size))
+                    .map(|size| Self::new(Unsigned, size))
                     .chain(
                         self.size
                             .larger_reprs()
                             .skip(1)
-                            .map(|size| Self::new(true, size)),
+                            .map(|size| Self::new(Signed, size)),
                     ),
-            )
+            ),
         }
     }
 }
@@ -321,10 +304,10 @@ impl Parse for Repr {
         let span = name.span();
         let s = name.to_string();
 
-        let (size, signed) = if let Some(size) = s.strip_prefix('i') {
-            (size, true)
+        let (size, sign) = if let Some(size) = s.strip_prefix('i') {
+            (size, Signed)
         } else if let Some(size) = s.strip_prefix('u') {
-            (size, false)
+            (size, Unsigned)
         } else {
             return Err(Error::new(span, "Repr must a primitive integer type"));
         };
@@ -347,7 +330,7 @@ impl Parse for Repr {
             }
         };
 
-        Ok(Self { signed, size, name })
+        Ok(Self { sign, size, name })
     }
 }
 
@@ -360,6 +343,7 @@ impl ToTokens for Repr {
 #[derive(Clone, Copy)]
 enum ReprSize {
     Fixed(ReprSizeFixed),
+
     /// `usize`/`isize`
     Pointer,
 }
@@ -392,6 +376,16 @@ enum ReprSizeFixed {
 }
 
 impl ReprSizeFixed {
+    fn to_bits(self) -> u64 {
+        match self {
+            ReprSizeFixed::Fixed8 => 8,
+            ReprSizeFixed::Fixed16 => 16,
+            ReprSizeFixed::Fixed32 => 32,
+            ReprSizeFixed::Fixed64 => 64,
+            ReprSizeFixed::Fixed128 => 128,
+        }
+    }
+
     fn from_bits(bits: u64) -> Option<Self> {
         Some(match bits {
             0..=8 => Self::Fixed8,
