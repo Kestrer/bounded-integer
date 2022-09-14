@@ -487,6 +487,9 @@ macro_rules! define_bounded_integers {
         impl_bin_op!(Mul::mul/MulAssign::mul_assign, "multiply");
         impl_bin_op!(Div::div/DivAssign::div_assign, "divide");
         impl_bin_op!(Rem::rem/RemAssign::rem_assign, "take remainder");
+        impl_bin_op!(BitAnd::bitand/BitAndAssign::bitand_assign, "binary and");
+        impl_bin_op!(BitOr::bitor/BitOrAssign::bitor_assign, "binary or");
+        impl_bin_op!(BitXor::bitxor/BitXorAssign::bitxor_assign, "binary xor");
 
         $($(if $signed)?
             use core::ops::Neg;
