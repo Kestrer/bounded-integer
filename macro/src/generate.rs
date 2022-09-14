@@ -571,6 +571,8 @@ const CHECKED_OPERATORS: &[CheckedOperator] = &checked_operators! {
     /** negation               */ fn neg        (    ) SignedSaturating,
     /** absolute value         */ fn abs        (    ) Signed          ,
     /** exponentiation         */ fn pow        (u32 ) All             ,
+    /** shift left             */ fn shl        (u32) NoSaturating    ,
+    /** shift right            */ fn shr        (u32) NoSaturating    ,
 };
 
 fn generate_ops_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
