@@ -1133,6 +1133,8 @@ macro_rules! define_bounded_integers {
                             checked_rem
                             checked_rem_euclid
                             checked_pow
+                            checked_shl
+                            checked_shr
                         )
                     }
                 }
@@ -1200,7 +1202,7 @@ macro_rules! define_bounded_integers {
             fn num() {
                 use num_traits02::{
                     Bounded, AsPrimitive, FromPrimitive, NumCast, ToPrimitive, CheckedAdd,
-                    CheckedDiv, CheckedMul, CheckedNeg, CheckedRem, CheckedSub
+                    CheckedDiv, CheckedMul, CheckedNeg, CheckedRem, CheckedSub, CheckedShl, CheckedShr
                 };
 
                 type B = super::Bounded<2, 8>;
@@ -1330,6 +1332,12 @@ macro_rules! define_bounded_integers {
 
                 assert_eq!(<B as CheckedSub>::checked_sub(&b(4), &b(2)), Some(b(2)));
                 assert_eq!(<B as CheckedSub>::checked_sub(&b(4), &b(4)), None);
+
+                assert_eq!(<B as CheckedShl>::checked_shl(&b(4), 1u32), Some(b(8)));
+                assert_eq!(<B as CheckedShl>::checked_shl(&b(4), 2u32), None);
+
+                assert_eq!(<B as CheckedShr>::checked_shr(&b(4), 1u32), Some(b(2)));
+                assert_eq!(<B as CheckedShr>::checked_shr(&b(4), 2u32), None);
             }
         }
     } pub use self::$inner::Bounded as $name; )* }
