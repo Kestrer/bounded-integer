@@ -571,6 +571,8 @@ const CHECKED_OPERATORS: &[CheckedOperator] = &checked_operators! {
     /** negation               */ fn neg        (    ) SignedSaturating,
     /** absolute value         */ fn abs        (    ) Signed          ,
     /** exponentiation         */ fn pow        (u32 ) All             ,
+    /** shift left             */ fn shl        (u32) NoSaturating    ,
+    /** shift right            */ fn shr        (u32) NoSaturating    ,
 };
 
 fn generate_ops_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
@@ -734,12 +736,18 @@ fn unop_trait_variations(
 
 #[rustfmt::skip]
 const OPERATORS: &[Operator] = &[
-    Operator { trait_name: "Add", method: "add", description: "add"           , bin: true , on_unsigned: true  },
-    Operator { trait_name: "Sub", method: "sub", description: "subtract"      , bin: true , on_unsigned: true  },
-    Operator { trait_name: "Mul", method: "mul", description: "multiply"      , bin: true , on_unsigned: true  },
-    Operator { trait_name: "Div", method: "div", description: "divide"        , bin: true , on_unsigned: true  },
-    Operator { trait_name: "Rem", method: "rem", description: "take remainder", bin: true , on_unsigned: true  },
-    Operator { trait_name: "Neg", method: "neg", description: "negate"        , bin: false, on_unsigned: false },
+    Operator { trait_name: "Add"   , method: "add"   , description: "add"           , bin: true , on_unsigned: true  },
+    Operator { trait_name: "Sub"   , method: "sub"   , description: "subtract"      , bin: true , on_unsigned: true  },
+    Operator { trait_name: "Mul"   , method: "mul"   , description: "multiply"      , bin: true , on_unsigned: true  },
+    Operator { trait_name: "Div"   , method: "div"   , description: "divide"        , bin: true , on_unsigned: true  },
+    Operator { trait_name: "Rem"   , method: "rem"   , description: "take remainder", bin: true , on_unsigned: true  },
+    Operator { trait_name: "Neg"   , method: "neg"   , description: "negate"        , bin: false, on_unsigned: false },
+    Operator { trait_name: "Not"   , method: "not"   , description: "not"           , bin: false, on_unsigned: true },
+    Operator { trait_name: "BitAnd", method: "bitand", description: "binary and"    , bin: true , on_unsigned: true  },
+    Operator { trait_name: "BitOr" , method: "bitor" , description: "binary or"     , bin: true , on_unsigned: true  },
+    Operator { trait_name: "BitXor", method: "bitxor", description: "binary xor"    , bin: true , on_unsigned: true  },
+    Operator { trait_name: "Shl"   , method: "shl"   , description: "shift left"    , bin: true , on_unsigned: true  },
+    Operator { trait_name: "Shr"   , method: "shr"   , description: "shift right"   , bin: true , on_unsigned: true  },
 ];
 
 struct Operator {
