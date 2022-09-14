@@ -1224,7 +1224,7 @@ fn generate_test_arithmetic(item: &BoundedInteger, tokens: &mut TokenStream) {
 
 fn enum_variant(i: &BigInt) -> Ident {
     Ident::new(
-        &*match i.sign() {
+        &match i.sign() {
             num_bigint::Sign::Minus => format!("N{}", i.magnitude()),
             num_bigint::Sign::NoSign => "Z".to_owned(),
             num_bigint::Sign::Plus => format!("P{}", i),
