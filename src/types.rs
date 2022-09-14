@@ -83,6 +83,29 @@ macro_rules! impl_bin_op {
     };
 }
 
+macro_rules! impl_shift_bin_op {
+    (u32, $op:ident::$method:ident/$op_assign:ident::$method_assign:ident, $desc:literal) => {
+        impl_bin_op!($op::$method/$op_assign::$method_assign, $desc);
+    };
+    ($inner:ident, $op:ident::$method:ident/$op_assign:ident::$method_assign:ident, $desc:literal) => {
+        impl_bin_op!($op::$method/$op_assign::$method_assign, $desc);
+
+        // Implementation used by checked shift operations
+        impl<const MIN: Inner, const MAX: Inner> $op<u32> for Bounded<MIN, MAX> {
+            type Output = Self;
+            #[inline]
+            fn $method(self, rhs: u32) -> Self::Output {
+                Self::new(self.get().$method(rhs))
+                    .expect(concat!("Attempted to ", $desc, " out of range"))
+            }
+        }
+        bin_op_variations!(
+            [const MIN: Inner, const MAX: Inner]
+            Bounded<MIN, MAX>, u32, $op::$method/$op_assign::$method_assign
+        );
+    };
+}
+
 #[cfg(test)]
 macro_rules! test_arithmetic {
     (ops($($op:tt $op_assign:tt)*) infallibles($($infallible:ident)*) fallibles($($fallible:ident)*)) => {
@@ -478,6 +501,26 @@ macro_rules! define_bounded_integers {
             pub const fn saturating_pow(self, rhs: u32) -> Self {
                 Self::new_saturating(self.get().saturating_pow(rhs))
             }
+
+            /// Checked shift left.
+            #[must_use]
+            #[inline]
+            pub const fn checked_shl(self, rhs: u32) -> Option<Self> {
+                match self.get().checked_shl(rhs) {
+                    Some(val) => Self::new(val),
+                    None => None,
+                }
+            }
+
+            /// Checked shift right.
+            #[must_use]
+            #[inline]
+            pub const fn checked_shr(self, rhs: u32) -> Option<Self> {
+                match self.get().checked_shr(rhs) {
+                    Some(val) => Self::new(val),
+                    None => None,
+                }
+            }
         }
 
         // === Operators ===
@@ -490,6 +533,8 @@ macro_rules! define_bounded_integers {
         impl_bin_op!(BitAnd::bitand/BitAndAssign::bitand_assign, "binary and");
         impl_bin_op!(BitOr::bitor/BitOrAssign::bitor_assign, "binary or");
         impl_bin_op!(BitXor::bitxor/BitXorAssign::bitxor_assign, "binary xor");
+        impl_shift_bin_op!($inner, Shl::shl/ShlAssign::shl_assign, "shift left");
+        impl_shift_bin_op!($inner, Shr::shr/ShrAssign::shr_assign, "shift right");
 
         $($(if $signed)?
             use core::ops::Neg;
@@ -928,6 +973,22 @@ macro_rules! define_bounded_integers {
         impl<const MIN: Inner, const MAX: Inner> num_traits02::CheckedRem for Bounded<MIN, MAX> {
             fn checked_rem(&self, v: &Self) -> Option<Self> {
                 Self::checked_rem(*self, v.get())
+            }
+        }
+
+        #[cfg(feature = "num-traits02")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "num-traits02")))]
+        impl<const MIN: Inner, const MAX: Inner> num_traits02::CheckedShl for Bounded<MIN, MAX> {
+            fn checked_shl(&self, v: u32) -> Option<Self> {
+                Self::checked_shl(*self, v)
+            }
+        }
+
+        #[cfg(feature = "num-traits02")]
+        #[cfg_attr(doc_cfg, doc(cfg(feature = "num-traits02")))]
+        impl<const MIN: Inner, const MAX: Inner> num_traits02::CheckedShr for Bounded<MIN, MAX> {
+            fn checked_shr(&self, v: u32) -> Option<Self> {
+                Self::checked_shr(*self, v)
             }
         }
 
