@@ -508,6 +508,24 @@ macro_rules! define_bounded_integers {
             }
         )?
 
+        use core::ops::Not;
+
+        impl<const MIN: Inner, const MAX: Inner> Not for Bounded<MIN, MAX> {
+            type Output = Self;
+            #[inline]
+            fn not(self) -> Self::Output {
+                Self::new(!self.get())
+                    .expect("Attempted to negate out of range")
+            }
+        }
+        impl<const MIN: Inner, const MAX: Inner> Not for &Bounded<MIN, MAX> {
+            type Output = Bounded<MIN, MAX>;
+            #[inline]
+            fn not(self) -> Self::Output {
+                !*self
+            }
+        }
+
         // === Comparisons ===
 
         impl<const MIN: Inner, const MAX: Inner> PartialEq<Inner> for Bounded<MIN, MAX> {
