@@ -100,9 +100,8 @@ impl Parse for BoundedInteger {
         let brace_token = braced!(range_tokens in input);
         let range: ExprRange = range_tokens.parse()?;
 
-        let (from_expr, to_expr) = match range.from.as_deref().zip(range.to.as_deref()) {
-            Some(t) => t,
-            None => return Err(Error::new_spanned(range, "Range must be closed")),
+        let Some((from_expr, to_expr)) = range.from.as_deref().zip(range.to.as_deref()) else {
+            return Err(Error::new_spanned(range, "Range must be closed"))
         };
         let from = eval_expr(from_expr)?;
         let to = eval_expr(to_expr)?;
@@ -131,8 +130,7 @@ impl Parse for BoundedInteger {
                     return Err(Error::new_spanned(
                         from_expr,
                         format_args!(
-                            "Bound {} is below the minimum value for the underlying type",
-                            from
+                            "Bound {from} is below the minimum value for the underlying type",
                         ),
                     ));
                 }
@@ -140,8 +138,7 @@ impl Parse for BoundedInteger {
                     return Err(Error::new_spanned(
                         to_expr,
                         format_args!(
-                            "Bound {} is above the maximum value for the underlying type",
-                            to
+                            "Bound {to} is above the maximum value for the underlying type",
                         ),
                     ));
                 }
@@ -323,8 +320,7 @@ impl Parse for Repr {
                 return Err(Error::new(
                     span,
                     format_args!(
-                        "Unknown integer size {}, must be one of 8, 16, 32, 64, 128 or size",
-                        unknown
+                        "Unknown integer size {unknown}, must be one of 8, 16, 32, 64, 128 or size",
                     ),
                 ));
             }
