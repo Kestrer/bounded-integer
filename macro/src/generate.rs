@@ -659,9 +659,9 @@ fn binop_trait_variations<B: ToTokens>(
     tokens: &mut TokenStream,
 ) {
     let trait_name = Ident::new(trait_name_root, Span::call_site());
-    let trait_name_assign = Ident::new(&format!("{}Assign", trait_name_root), Span::call_site());
+    let trait_name_assign = Ident::new(&format!("{trait_name_root}Assign"), Span::call_site());
     let method = Ident::new(method_root, Span::call_site());
-    let method_assign = Ident::new(&format!("{}_assign", method_root), Span::call_site());
+    let method_assign = Ident::new(&format!("{method_root}_assign"), Span::call_site());
     let body = body(&trait_name, &method);
 
     tokens.extend(quote! {
@@ -1206,7 +1206,7 @@ fn generate_test_arithmetic(item: &BoundedInteger, tokens: &mut TokenStream) {
         });
     }
     for method in &fallibles {
-        let method = Ident::new(&format!("checked_{}", method), Span::call_site());
+        let method = Ident::new(&format!("checked_{method}"), Span::call_site());
         body.extend(quote! {
             let _: Option<#ident> = #ident::MIN.#method(0);
         });
@@ -1227,7 +1227,7 @@ fn enum_variant(i: &BigInt) -> Ident {
         &match i.sign() {
             num_bigint::Sign::Minus => format!("N{}", i.magnitude()),
             num_bigint::Sign::NoSign => "Z".to_owned(),
-            num_bigint::Sign::Plus => format!("P{}", i),
+            num_bigint::Sign::Plus => format!("P{i}"),
         },
         Span::call_site(),
     )

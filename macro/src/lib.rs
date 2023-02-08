@@ -208,7 +208,7 @@ impl Repr {
         Self {
             sign,
             size,
-            name: Ident::new(&format!("{}{}", prefix, size), Span::call_site()),
+            name: Ident::new(&format!("{prefix}{size}"), Span::call_site()),
         }
     }
 
