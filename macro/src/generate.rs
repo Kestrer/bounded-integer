@@ -1247,7 +1247,7 @@ mod tests {
         let input = quote!([::path] false false false false false #input);
         let item = match parse2::<BoundedInteger>(input.clone()) {
             Ok(item) => item,
-            Err(e) => panic!("Failed to parse '{}': {}", input, e),
+            Err(e) => panic!("Failed to parse '{input}': {e}"),
         };
         let mut result = TokenStream::new();
         f(&item, &mut result);
