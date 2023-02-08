@@ -18,7 +18,7 @@ serde1 = { package = "serde", version = "1.0.124", default-features = false, opt
 zerocopy06 = { package = "zerocopy", version = "0.6", optional = true }
 
 [build-dependencies]
-autocfg = "1"
+autocfg = "1.1.0"
 
 [features]
 std = []
