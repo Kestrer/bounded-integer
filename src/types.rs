@@ -1421,7 +1421,7 @@ impl<const MIN: usize, const MAX: usize, T> std::ops::Index<BoundedUsize<MIN, MA
 }
 
 #[cfg(all(test, feature = "std", feature = "types"))]
-mod tests {
+mod usize2 {
     #[test]
     fn indexing() {
         let vec = (0..20).collect::<std::vec::Vec<usize>>();
