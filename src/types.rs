@@ -1390,10 +1390,7 @@ define_bounded_integers! {
 }
 
 //Indexing operations on [T; N], Vec<T> and VecDeque<T> for BoundedUsize
-#[cfg(all(feature = "std", feature = "types"))]
-impl<const MIN: usize, const MAX: usize, const N: usize, T> std::ops::Index<BoundedUsize<MIN, MAX>>
-    for [T; N]
-{
+impl<const MIN: usize, const MAX: usize, T> core::ops::Index<BoundedUsize<MIN, MAX>> for [T] {
     type Output = T;
 
     #[inline]
