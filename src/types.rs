@@ -1391,9 +1391,11 @@ define_bounded_integers! {
 
 //Indexing operations on [T; N], Vec<T> and VecDeque<T> for BoundedUsize
 #[cfg(all(feature = "std", feature = "types"))]
-impl<const MIN: usize, const MAX: usize, const N: usize, T> std::ops::Index<BoundedUsize<MIN, MAX>> for [T; N] {
+impl<const MIN: usize, const MAX: usize, const N: usize, T> std::ops::Index<BoundedUsize<MIN, MAX>>
+    for [T; N]
+{
     type Output = T;
-    
+
     #[inline]
     fn index(&self, index: BoundedUsize<MIN, MAX>) -> &Self::Output {
         &self[index.get()]
@@ -1401,9 +1403,11 @@ impl<const MIN: usize, const MAX: usize, const N: usize, T> std::ops::Index<Boun
 }
 
 #[cfg(all(feature = "std", feature = "types"))]
-impl<const MIN: usize, const MAX: usize, T> std::ops::Index<BoundedUsize<MIN, MAX>> for std::vec::Vec<T> {
+impl<const MIN: usize, const MAX: usize, T> std::ops::Index<BoundedUsize<MIN, MAX>>
+    for std::vec::Vec<T>
+{
     type Output = T;
-    
+
     #[inline]
     fn index(&self, index: BoundedUsize<MIN, MAX>) -> &Self::Output {
         &self[index.get()]
@@ -1411,9 +1415,11 @@ impl<const MIN: usize, const MAX: usize, T> std::ops::Index<BoundedUsize<MIN, MA
 }
 
 #[cfg(all(feature = "std", feature = "types"))]
-impl<const MIN: usize, const MAX: usize, T> std::ops::Index<BoundedUsize<MIN, MAX>> for std::collections::VecDeque<T> {
+impl<const MIN: usize, const MAX: usize, T> std::ops::Index<BoundedUsize<MIN, MAX>>
+    for std::collections::VecDeque<T>
+{
     type Output = T;
-    
+
     #[inline]
     fn index(&self, index: BoundedUsize<MIN, MAX>) -> &Self::Output {
         &self[index.get()]
@@ -1426,7 +1432,11 @@ mod usize2 {
     fn indexing() {
         let vec = (0..20).collect::<std::vec::Vec<usize>>();
         let arr: [_; 20] = vec.clone().try_into().unwrap();
-        let deq = vec.clone().into_iter().rev().collect::<std::collections::VecDeque<_>>();
+        let deq = vec
+            .clone()
+            .into_iter()
+            .rev()
+            .collect::<std::collections::VecDeque<_>>();
 
         for i in 0..20 {
             let b_u = crate::types::BoundedUsize::<0, 20>::new(i).unwrap();
