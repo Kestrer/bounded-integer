@@ -1398,9 +1398,8 @@ impl<const MIN: usize, const MAX: usize, T> core::ops::Index<BoundedUsize<MIN, M
         &self[index.get()]
     }
 }
-
-#[cfg(all(feature = "std", feature = "types"))]
-impl<const MIN: usize, const MAX: usize, T> std::ops::Index<BoundedUsize<MIN, MAX>>
+#[cfg(feature = "std")]
+impl<const MIN: usize, const MAX: usize, T> core::ops::Index<BoundedUsize<MIN, MAX>>
     for std::vec::Vec<T>
 {
     type Output = T;
@@ -1410,9 +1409,8 @@ impl<const MIN: usize, const MAX: usize, T> std::ops::Index<BoundedUsize<MIN, MA
         &self[index.get()]
     }
 }
-
-#[cfg(all(feature = "std", feature = "types"))]
-impl<const MIN: usize, const MAX: usize, T> std::ops::Index<BoundedUsize<MIN, MAX>>
+#[cfg(feature = "std")]
+impl<const MIN: usize, const MAX: usize, T> core::ops::Index<BoundedUsize<MIN, MAX>>
     for std::collections::VecDeque<T>
 {
     type Output = T;
