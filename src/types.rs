@@ -1421,8 +1421,30 @@ impl<const MIN: usize, const MAX: usize, T> core::ops::Index<BoundedUsize<MIN, M
     }
 }
 
-#[cfg(all(test, feature = "std", feature = "types"))]
-mod usize2 {
+impl<const MIN: usize, const MAX: usize, T> core::ops::IndexMut<BoundedUsize<MIN, MAX>> for [T] {
+    #[inline]
+    fn index_mut(&mut self, index: BoundedUsize<MIN, MAX>) -> &mut Self::Output {
+        &mut self[index.get()]
+    }
+}
+#[cfg(feature = "std")]
+impl<const MIN: usize, const MAX: usize, T> core::ops::IndexMut<BoundedUsize<MIN, MAX>>
+    for std::vec::Vec<T>
+{
+    #[inline]
+    fn index_mut(&mut self, index: BoundedUsize<MIN, MAX>) -> &mut Self::Output {
+        &mut self[index.get()]
+    }
+}
+#[cfg(feature = "std")]
+impl<const MIN: usize, const MAX: usize, T> core::ops::IndexMut<BoundedUsize<MIN, MAX>>
+    for std::collections::VecDeque<T>
+{
+    #[inline]
+    fn index_mut(&mut self, index: BoundedUsize<MIN, MAX>) -> &mut Self::Output {
+        &mut self[index.get()]
+    }
+}
     #[test]
     fn indexing() {
         let vec = (0..20).collect::<std::vec::Vec<usize>>();
