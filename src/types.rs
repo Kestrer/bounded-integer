@@ -1388,3 +1388,51 @@ define_bounded_integers! {
     BoundedI64 i64 signed -> i64,
     BoundedIsize isize signed -> isize,
 }
+
+//Indexing operations on [T; N], Vec<T> and VecDeque<T> for BoundedUsize
+#[cfg(all(feature = "std", feature = "types"))]
+impl<const MIN: usize, const MAX: usize, const N: usize, T> std::ops::Index<BoundedUsize<MIN, MAX>> for [T; N] {
+    type Output = T;
+    
+    #[inline]
+    fn index(&self, index: BoundedUsize<MIN, MAX>) -> &Self::Output {
+        &self[index.get()]
+    }
+}
+
+#[cfg(all(feature = "std", feature = "types"))]
+impl<const MIN: usize, const MAX: usize, T> std::ops::Index<BoundedUsize<MIN, MAX>> for std::vec::Vec<T> {
+    type Output = T;
+    
+    #[inline]
+    fn index(&self, index: BoundedUsize<MIN, MAX>) -> &Self::Output {
+        &self[index.get()]
+    }
+}
+
+#[cfg(all(feature = "std", feature = "types"))]
+impl<const MIN: usize, const MAX: usize, T> std::ops::Index<BoundedUsize<MIN, MAX>> for std::collections::VecDeque<T> {
+    type Output = T;
+    
+    #[inline]
+    fn index(&self, index: BoundedUsize<MIN, MAX>) -> &Self::Output {
+        &self[index.get()]
+    }
+}
+
+#[cfg(all(test, feature = "std", feature = "types"))]
+mod tests {
+    #[test]
+    fn indexing() {
+        let vec = (0..20).collect::<std::vec::Vec<usize>>();
+        let arr: [_; 20] = vec.clone().try_into().unwrap();
+        let deq = vec.clone().into_iter().rev().collect::<std::collections::VecDeque<_>>();
+
+        for i in 0..20 {
+            let b_u = crate::types::BoundedUsize::<0, 20>::new(i).unwrap();
+            assert_eq!(vec[b_u], i);
+            assert_eq!(arr[b_u], i);
+            assert_eq!(deq[b_u], 19 - i);
+        }
+    }
+}
