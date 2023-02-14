@@ -57,6 +57,7 @@
         "check_nightly": {
             "name": "Check Nightly",
             "runs-on": "ubuntu-latest",
+            "env": { "RUSTFLAGS": "-Dwarnings" },
             "steps": [
                 { "uses": "actions/checkout@v2" },
                 {
@@ -71,7 +72,7 @@
                     "uses": "actions-rs/cargo@v1",
                     "with": {
                         "command": "check",
-                        "args": "--workspace --all-targets --features types,__examples -Dwarnings",
+                        "args": "--workspace --all-targets --features types,__examples",
                     },
                 },
             ],
