@@ -71,7 +71,7 @@
                     "uses": "actions-rs/cargo@v1",
                     "with": {
                         "command": "check",
-                        "args": "--workspace --all-targets --features types,__examples -- -Dwarnings",
+                        "args": "--workspace --all-targets --features types,__examples -Dwarnings",
                     },
                 },
             ],
