@@ -20,8 +20,8 @@ impl<const MIN: usize, const MAX: usize, T> IndexMut<BoundedUsize<MIN, MAX>> for
     }
 }
 
-#[cfg(feature = "std")]
-impl<const MIN: usize, const MAX: usize, T> Index<BoundedUsize<MIN, MAX>> for std::vec::Vec<T> {
+#[cfg(feature = "alloc")]
+impl<const MIN: usize, const MAX: usize, T> Index<BoundedUsize<MIN, MAX>> for alloc::vec::Vec<T> {
     type Output = T;
 
     #[inline]
@@ -30,17 +30,17 @@ impl<const MIN: usize, const MAX: usize, T> Index<BoundedUsize<MIN, MAX>> for st
     }
 }
 
-#[cfg(feature = "std")]
-impl<const MIN: usize, const MAX: usize, T> IndexMut<BoundedUsize<MIN, MAX>> for std::vec::Vec<T> {
+#[cfg(feature = "alloc")]
+impl<const MIN: usize, const MAX: usize, T> IndexMut<BoundedUsize<MIN, MAX>> for alloc::vec::Vec<T> {
     #[inline]
     fn index_mut(&mut self, index: BoundedUsize<MIN, MAX>) -> &mut Self::Output {
         &mut self[index.get()]
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "alloc")]
 impl<const MIN: usize, const MAX: usize, T> Index<BoundedUsize<MIN, MAX>>
-    for std::collections::VecDeque<T>
+    for alloc::collections::VecDeque<T>
 {
     type Output = T;
 
@@ -50,9 +50,9 @@ impl<const MIN: usize, const MAX: usize, T> Index<BoundedUsize<MIN, MAX>>
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "alloc")]
 impl<const MIN: usize, const MAX: usize, T> IndexMut<BoundedUsize<MIN, MAX>>
-    for std::collections::VecDeque<T>
+    for alloc::collections::VecDeque<T>
 {
     #[inline]
     fn index_mut(&mut self, index: BoundedUsize<MIN, MAX>) -> &mut Self::Output {
@@ -75,14 +75,14 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "std")]
-    fn indexing_std() {
-        let vec = (0..20).collect::<std::vec::Vec<usize>>();
+    #[cfg(feature = "alloc")]
+    fn indexing_alloc() {
+        let vec = (0..20).collect::<alloc::vec::Vec<usize>>();
         let deq = vec
             .clone()
             .into_iter()
             .rev()
-            .collect::<std::collections::VecDeque<_>>();
+            .collect::<alloc::collections::VecDeque<_>>();
 
         for i in 0..vec.len() {
             let b_u = BoundedUsize::<0, 30>::new(i).unwrap();
@@ -106,14 +106,14 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "std")]
-    fn indexing_mut_std() {
-        let mut vec = (0..20).collect::<std::vec::Vec<usize>>();
+    #[cfg(feature = "alloc")]
+    fn indexing_mut_alloc() {
+        let mut vec = (0..20).collect::<alloc::vec::Vec<usize>>();
         let mut deq = vec
             .clone()
             .into_iter()
             .rev()
-            .collect::<std::collections::VecDeque<_>>();
+            .collect::<alloc::collections::VecDeque<_>>();
 
         for i in 0..vec.len() {
             let b_u = BoundedUsize::<0, 30>::new(i).unwrap();

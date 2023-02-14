@@ -21,7 +21,8 @@ zerocopy06 = { package = "zerocopy", version = "0.6", optional = true }
 autocfg = "1.1.0"
 
 [features]
-std = []
+std = ["alloc"]
+alloc = []
 
 types = []
 

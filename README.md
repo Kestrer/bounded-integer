@@ -50,7 +50,10 @@ All the integers in this crate depend only on libcore and so work in `#![no_std]
 ## Crate Features
 
 By default, no crate features are enabled.
-- `std`: Implement traits from `std`, such as [`Error`] on [`ParseError`].
+- `std`: Interopate with `std` — implies `alloc`. Enables the following things:
+    - An implementation of [`Error`] for [`ParseError`].
+- `alloc`: Interopate with `alloc`. Enables the following things:
+    - Support for indexing with the const-generic integers on `Vec` and `VecDeque`.
 - `macro`: Enable the [`bounded_integer!`] macro.
 - `types`: Enable the bounded integer types that use const generics.
 - `arbitrary1`: Implement [`Arbitrary`] for the bounded integers. This is useful when using

@@ -45,7 +45,11 @@
 //! # Crate Features
 //!
 //! By default, no crate features are enabled.
-//! - `std`: Implement traits from `std`, such as [`Error`] on [`ParseError`].
+//! - `std`: Interopate with `std` — implies `alloc`. Enables the following things:
+//!     - An implementation of [`Error`] for [`ParseError`].
+//!     - Support for indexing with the const-generic integers on `VecDeque`.
+//! - `alloc`: Interopate with `alloc`. Enables the following things:
+//!     - Support for indexing with the const-generic integers on `Vec`.
 //! - `macro`: Enable the [`bounded_integer!`] macro.
 //! - `types`: Enable the bounded integer types that use const generics.
 //! - `arbitrary1`: Implement [`Arbitrary`] for the bounded integers. This is useful when using
@@ -99,6 +103,9 @@
 
 #[cfg(feature = "std")]
 extern crate std;
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
 
 #[cfg(feature = "types")]
 mod types;
