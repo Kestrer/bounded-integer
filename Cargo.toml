@@ -1,6 +1,6 @@
 [package]
 name = "bounded-integer"
-version = "0.5.4"
+version = "0.5.5"
 description = "Bounded integers"
 keywords = ["bounded", "integer", "macro", "refinement"]
 license = "ISC"
