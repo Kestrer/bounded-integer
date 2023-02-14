@@ -20,14 +20,14 @@
                     "uses": "actions-rs/cargo@v1",
                     "with": {
                         "command": "clippy",
-                        "args": "--workspace --all-targets --features types,__examples -- --D warnings",
+                        "args": "--workspace --all-targets --features types,__examples -- -Dwarnings",
                     },
                 },
                 {
                     "uses": "actions-rs/cargo@v1",
                     "with": {
                         "command": "clippy",
-                        "args": "--workspace --all-targets --features types,__examples,arbitrary1,bytemuck1,serde1,zerocopy06,std -- --D warnings",
+                        "args": "--workspace --all-targets --features types,__examples,arbitrary1,bytemuck1,serde1,zerocopy06,std -- -Dwarnings",
                     },
                 },
             ],
@@ -71,7 +71,7 @@
                     "uses": "actions-rs/cargo@v1",
                     "with": {
                         "command": "check",
-                        "args": "--workspace --all-targets --features types,__examples -- --D warnings",
+                        "args": "--workspace --all-targets --features types,__examples -- -Dwarnings",
                     },
                 },
             ],
