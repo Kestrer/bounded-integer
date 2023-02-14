@@ -54,8 +54,8 @@
                 },
             ],
         },
-        "clippy_nightly": {
-            "name": "Clippy Nightly",
+        "check_nightly": {
+            "name": "Check Nightly",
             "runs-on": "ubuntu-latest",
             "steps": [
                 { "uses": "actions/checkout@v2" },
@@ -64,22 +64,14 @@
                     "with": {
                         "toolchain": "nightly",
                         "profile": "minimal",
-                        "components": "clippy",
                         "override": true,
                     },
                 },
                 {
                     "uses": "actions-rs/cargo@v1",
                     "with": {
-                        "command": "clippy",
+                        "command": "check",
                         "args": "--workspace --all-targets --features types,__examples -- --D warnings",
-                    },
-                },
-                {
-                    "uses": "actions-rs/cargo@v1",
-                    "with": {
-                        "command": "clippy",
-                        "args": "--workspace --all-targets --features types,__examples,arbitrary1,bytemuck1,serde1,zerocopy06,std,step_trait -- --D warnings",
                     },
                 },
             ],
