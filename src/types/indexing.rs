@@ -31,7 +31,9 @@ impl<const MIN: usize, const MAX: usize, T> Index<BoundedUsize<MIN, MAX>> for al
 }
 
 #[cfg(feature = "alloc")]
-impl<const MIN: usize, const MAX: usize, T> IndexMut<BoundedUsize<MIN, MAX>> for alloc::vec::Vec<T> {
+impl<const MIN: usize, const MAX: usize, T> IndexMut<BoundedUsize<MIN, MAX>>
+    for alloc::vec::Vec<T>
+{
     #[inline]
     fn index_mut(&mut self, index: BoundedUsize<MIN, MAX>) -> &mut Self::Output {
         &mut self[index.get()]
