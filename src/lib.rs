@@ -233,6 +233,7 @@ block! {
     let arbitrary1: ident = cfg_bool!(feature = "arbitrary1");
     let bytemuck1: ident = cfg_bool!(feature = "bytemuck1");
     let serde1: ident = cfg_bool!(feature = "serde1");
+    let std: ident = cfg_bool!(feature = "std");
     let zerocopy06: ident = cfg_bool!(feature = "zerocopy06");
     let step_trait: ident = cfg_bool!(feature = "step_trait");
     let d: tt = dollar!();
@@ -242,7 +243,7 @@ block! {
     macro_rules! __bounded_integer_inner2 {
         ($d($d tt:tt)*) => {
             $crate::__private::proc_macro! {
-                [$crate] $arbitrary1 $bytemuck1 $serde1 $zerocopy06 $step_trait $d($d tt)*
+                [$crate] $arbitrary1 $bytemuck1 $serde1 $std $zerocopy06 $step_trait $d($d tt)*
             }
         };
     }
@@ -286,3 +287,8 @@ macro_rules! block {
 }
 #[cfg(feature = "macro")]
 use block;
+
+// fn thing() {
+//     crate::bounded_integer!(pub struct Amogus{ 0..20 });
+//     let x = Amogus::new(10);
+// }
