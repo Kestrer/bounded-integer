@@ -298,7 +298,7 @@ impl Repr {
     }
 
     fn is_usize(&self) -> bool {
-        matches!((self.sign, self.size),(Unsigned, ReprSize::Pointer))
+        matches!((self.sign, self.size), (Unsigned, ReprSize::Pointer))
     }
 }
 

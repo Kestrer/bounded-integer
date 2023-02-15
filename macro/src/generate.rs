@@ -977,7 +977,7 @@ fn generate_to_primitive_traits(item: &BoundedInteger, tokens: &mut TokenStream)
 fn generate_index_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
     let ident = &item.ident;
 
-    tokens.extend(quote!{
+    tokens.extend(quote! {
         impl<T> core::ops::Index<#ident> for [T] {
             type Output = T;
 
@@ -999,7 +999,7 @@ fn generate_index_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
 fn generate_index_traits_std(item: &BoundedInteger, tokens: &mut TokenStream) {
     let ident = &item.ident;
 
-    tokens.extend(quote!{
+    tokens.extend(quote! {
         impl<T> core::ops::Index<#ident>
             for std::vec::Vec<T>
         {
