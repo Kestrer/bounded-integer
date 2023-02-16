@@ -24,6 +24,8 @@ pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
 
         if item.std {
             generate_index_traits_std(item, tokens);
+        } else if item.alloc {
+            generate_index_traits_alloc(item, tokens);
         }
     }
     if item.arbitrary1 {
@@ -996,6 +998,50 @@ fn generate_index_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
     });
 }
 
+fn generate_index_traits_alloc(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let ident = &item.ident;
+
+    tokens.extend(quote! {
+        impl<T ::core::ops::Index<#ident>
+            for ::alloc::vec::Vec<T>
+        {
+            type Output = T;
+
+            #[inline]
+            fn index(&self, index: #ident) -> &Self::Output {
+                &self[index.get()]
+            }
+        }
+        impl<T ::core::ops::Index<#ident>
+            for ::alloc::collections::VecDeque<T>
+        {
+            type Output = T;
+
+            #[inline]
+            fn index(&self, index: #ident) -> &Self::Output {
+                &self[index.get()]
+            }
+        }
+
+        impl<T ::core::ops::IndexMut<#ident>
+            for ::alloc::vec::Vec<T>
+        {
+            #[inline]
+            fn index_mut(&mut self, index: #ident) -> &mut Self::Output {
+                &mut self[index.get()]
+            }
+        }
+        impl<T ::core::ops::IndexMut<#ident>
+            for ::alloc::collections::VecDeque<T>
+        {
+            #[inline]
+            fn index_mut(&mut self, index: #ident) -> &mut Self::Output {
+                &mut self[index.get()]
+            }
+        }
+    });
+}
+
 fn generate_index_traits_std(item: &BoundedInteger, tokens: &mut TokenStream) {
     let ident = &item.ident;
 
@@ -1317,7 +1363,7 @@ mod tests {
         input: TokenStream,
         expected: TokenStream,
     ) {
-        let input = quote!([::path] false false false false false false #input);
+        let input = quote!([::path] false false false false false false false #input);
         let item = match parse2::<BoundedInteger>(input.clone()) {
             Ok(item) => item,
             Err(e) => panic!("Failed to parse '{input}': {e}"),

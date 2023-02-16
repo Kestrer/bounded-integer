@@ -57,6 +57,7 @@ struct BoundedInteger {
     crate_path: TokenStream,
 
     // Optional features
+    alloc: bool,
     arbitrary1: bool,
     bytemuck1: bool,
     serde1: bool,
@@ -78,6 +79,7 @@ impl Parse for BoundedInteger {
     fn parse(input: ParseStream<'_>) -> parse::Result<Self> {
         let crate_path = input.parse::<Group>()?.stream();
 
+        let alloc = input.parse::<LitBool>()?.value;
         let arbitrary1 = input.parse::<LitBool>()?.value;
         let bytemuck1 = input.parse::<LitBool>()?.value;
         let serde1 = input.parse::<LitBool>()?.value;
@@ -154,6 +156,7 @@ impl Parse for BoundedInteger {
 
         Ok(Self {
             crate_path,
+            alloc,
             arbitrary1,
             bytemuck1,
             serde1,
