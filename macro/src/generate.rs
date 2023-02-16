@@ -23,9 +23,9 @@ pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
         generate_index_traits(item, tokens);
 
         if item.std {
-            generate_index_traits_std(item, tokens);
+            generate_index_traits_alloc(item, tokens, Ident::new("std", Span::call_site()));
         } else if item.alloc {
-            generate_index_traits_alloc(item, tokens);
+            generate_index_traits_alloc(item, tokens, Ident::new("alloc", Span::call_site()));
         }
     }
     if item.arbitrary1 {
@@ -998,12 +998,12 @@ fn generate_index_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
     });
 }
 
-fn generate_index_traits_alloc(item: &BoundedInteger, tokens: &mut TokenStream) {
+fn generate_index_traits_alloc(item: &BoundedInteger, tokens: &mut TokenStream, alloc_or_std: Ident) {
     let ident = &item.ident;
 
     tokens.extend(quote! {
         impl<T ::core::ops::Index<#ident>
-            for ::alloc::vec::Vec<T>
+            for ::#alloc_or_std::vec::Vec<T>
         {
             type Output = T;
 
@@ -1013,7 +1013,7 @@ fn generate_index_traits_alloc(item: &BoundedInteger, tokens: &mut TokenStream) 
             }
         }
         impl<T ::core::ops::Index<#ident>
-            for ::alloc::collections::VecDeque<T>
+            for ::#alloc_or_std::collections::VecDeque<T>
         {
             type Output = T;
 
@@ -1024,7 +1024,7 @@ fn generate_index_traits_alloc(item: &BoundedInteger, tokens: &mut TokenStream) 
         }
 
         impl<T ::core::ops::IndexMut<#ident>
-            for ::alloc::vec::Vec<T>
+            for ::#alloc_or_std::vec::Vec<T>
         {
             #[inline]
             fn index_mut(&mut self, index: #ident) -> &mut Self::Output {
@@ -1032,51 +1032,7 @@ fn generate_index_traits_alloc(item: &BoundedInteger, tokens: &mut TokenStream) 
             }
         }
         impl<T ::core::ops::IndexMut<#ident>
-            for ::alloc::collections::VecDeque<T>
-        {
-            #[inline]
-            fn index_mut(&mut self, index: #ident) -> &mut Self::Output {
-                &mut self[index.get()]
-            }
-        }
-    });
-}
-
-fn generate_index_traits_std(item: &BoundedInteger, tokens: &mut TokenStream) {
-    let ident = &item.ident;
-
-    tokens.extend(quote! {
-        impl<T ::core::ops::Index<#ident>
-            for ::std::vec::Vec<T>
-        {
-            type Output = T;
-
-            #[inline]
-            fn index(&self, index: #ident) -> &Self::Output {
-                &self[index.get()]
-            }
-        }
-        impl<T ::core::ops::Index<#ident>
-            for ::std::collections::VecDeque<T>
-        {
-            type Output = T;
-
-            #[inline]
-            fn index(&self, index: #ident) -> &Self::Output {
-                &self[index.get()]
-            }
-        }
-
-        impl<T ::core::ops::IndexMut<#ident>
-            for ::std::vec::Vec<T>
-        {
-            #[inline]
-            fn index_mut(&mut self, index: #ident) -> &mut Self::Output {
-                &mut self[index.get()]
-            }
-        }
-        impl<T ::core::ops::IndexMut<#ident>
-            for ::std::collections::VecDeque<T>
+            for ::#alloc_or_std::collections::VecDeque<T>
         {
             #[inline]
             fn index_mut(&mut self, index: #ident) -> &mut Self::Output {
