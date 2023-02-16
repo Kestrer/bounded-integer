@@ -998,7 +998,11 @@ fn generate_index_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
     });
 }
 
-fn generate_index_traits_alloc(item: &BoundedInteger, tokens: &mut TokenStream, alloc_or_std: Ident) {
+fn generate_index_traits_alloc(
+    item: &BoundedInteger,
+    tokens: &mut TokenStream,
+    alloc_or_std: Ident,
+) {
     let ident = &item.ident;
 
     tokens.extend(quote! {
