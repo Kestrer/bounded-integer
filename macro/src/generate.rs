@@ -19,6 +19,15 @@ pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
     generate_from_str(item, tokens);
     generate_fmt_traits(item, tokens);
     generate_to_primitive_traits(item, tokens);
+    if item.repr.is_usize() {
+        generate_index_traits(item, tokens);
+
+        if item.std {
+            generate_index_traits_alloc(item, tokens, &Ident::new("std", Span::call_site()));
+        } else if item.alloc {
+            generate_index_traits_alloc(item, tokens, &Ident::new("alloc", Span::call_site()));
+        }
+    }
     if item.arbitrary1 {
         generate_arbitrary1(item, tokens);
     }
@@ -967,6 +976,76 @@ fn generate_to_primitive_traits(item: &BoundedInteger, tokens: &mut TokenStream)
     }
 }
 
+fn generate_index_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let ident = &item.ident;
+
+    tokens.extend(quote! {
+        impl<T> ::core::ops::Index<#ident> for [T] {
+            type Output = T;
+
+            #[inline]
+            fn index(&self, index: #ident) -> &Self::Output {
+                &self[index.get()]
+            }
+        }
+
+        impl<T ::core::ops::IndexMut<#ident> for [T] {
+            #[inline]
+            fn index_mut(&mut self, index: #ident) -> &mut Self::Output {
+                &mut self[index.get()]
+            }
+        }
+    });
+}
+
+fn generate_index_traits_alloc(
+    item: &BoundedInteger,
+    tokens: &mut TokenStream,
+    alloc_or_std: &Ident,
+) {
+    let ident = &item.ident;
+
+    tokens.extend(quote! {
+        impl<T ::core::ops::Index<#ident>
+            for ::#alloc_or_std::vec::Vec<T>
+        {
+            type Output = T;
+
+            #[inline]
+            fn index(&self, index: #ident) -> &Self::Output {
+                &self[index.get()]
+            }
+        }
+        impl<T ::core::ops::Index<#ident>
+            for ::#alloc_or_std::collections::VecDeque<T>
+        {
+            type Output = T;
+
+            #[inline]
+            fn index(&self, index: #ident) -> &Self::Output {
+                &self[index.get()]
+            }
+        }
+
+        impl<T ::core::ops::IndexMut<#ident>
+            for ::#alloc_or_std::vec::Vec<T>
+        {
+            #[inline]
+            fn index_mut(&mut self, index: #ident) -> &mut Self::Output {
+                &mut self[index.get()]
+            }
+        }
+        impl<T ::core::ops::IndexMut<#ident>
+            for ::#alloc_or_std::collections::VecDeque<T>
+        {
+            #[inline]
+            fn index_mut(&mut self, index: #ident) -> &mut Self::Output {
+                &mut self[index.get()]
+            }
+        }
+    });
+}
+
 fn generate_arbitrary1(item: &BoundedInteger, tokens: &mut TokenStream) {
     let ident = &item.ident;
     let repr = &item.repr;
@@ -1244,7 +1323,7 @@ mod tests {
         input: TokenStream,
         expected: TokenStream,
     ) {
-        let input = quote!([::path] false false false false false #input);
+        let input = quote!([::path] false false false false false false false #input);
         let item = match parse2::<BoundedInteger>(input.clone()) {
             Ok(item) => item,
             Err(e) => panic!("Failed to parse '{input}': {e}"),

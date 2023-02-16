@@ -57,9 +57,11 @@ struct BoundedInteger {
     crate_path: TokenStream,
 
     // Optional features
+    alloc: bool,
     arbitrary1: bool,
     bytemuck1: bool,
     serde1: bool,
+    std: bool,
     zerocopy06: bool,
     step_trait: bool,
 
@@ -77,9 +79,11 @@ impl Parse for BoundedInteger {
     fn parse(input: ParseStream<'_>) -> parse::Result<Self> {
         let crate_path = input.parse::<Group>()?.stream();
 
+        let alloc = input.parse::<LitBool>()?.value;
         let arbitrary1 = input.parse::<LitBool>()?.value;
         let bytemuck1 = input.parse::<LitBool>()?.value;
         let serde1 = input.parse::<LitBool>()?.value;
+        let std = input.parse::<LitBool>()?.value;
         let zerocopy06 = input.parse::<LitBool>()?.value;
         let step_trait = input.parse::<LitBool>()?.value;
 
@@ -152,9 +156,11 @@ impl Parse for BoundedInteger {
 
         Ok(Self {
             crate_path,
+            alloc,
             arbitrary1,
             bytemuck1,
             serde1,
+            std,
             zerocopy06,
             step_trait,
             attrs,
@@ -292,6 +298,10 @@ impl Repr {
                     ),
             ),
         }
+    }
+
+    fn is_usize(&self) -> bool {
+        matches!((self.sign, self.size), (Unsigned, ReprSize::Pointer))
     }
 }
 

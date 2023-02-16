@@ -230,9 +230,11 @@ macro_rules! bounded_integer {
 
 #[cfg(feature = "macro")]
 block! {
+    let alloc: ident = cfg_bool!(feature = "alloc");
     let arbitrary1: ident = cfg_bool!(feature = "arbitrary1");
     let bytemuck1: ident = cfg_bool!(feature = "bytemuck1");
     let serde1: ident = cfg_bool!(feature = "serde1");
+    let std: ident = cfg_bool!(feature = "std");
     let zerocopy06: ident = cfg_bool!(feature = "zerocopy06");
     let step_trait: ident = cfg_bool!(feature = "step_trait");
     let d: tt = dollar!();
@@ -242,7 +244,7 @@ block! {
     macro_rules! __bounded_integer_inner2 {
         ($d($d tt:tt)*) => {
             $crate::__private::proc_macro! {
-                [$crate] $arbitrary1 $bytemuck1 $serde1 $zerocopy06 $step_trait $d($d tt)*
+                [$crate] $alloc $arbitrary1 $bytemuck1 $serde1 $std $zerocopy06 $step_trait $d($d tt)*
             }
         };
     }
