@@ -23,9 +23,9 @@ pub(crate) fn generate(item: &BoundedInteger, tokens: &mut TokenStream) {
         generate_index_traits(item, tokens);
 
         if item.std {
-            generate_index_traits_alloc(item, tokens, Ident::new("std", Span::call_site()));
+            generate_index_traits_alloc(item, tokens, &Ident::new("std", Span::call_site()));
         } else if item.alloc {
-            generate_index_traits_alloc(item, tokens, Ident::new("alloc", Span::call_site()));
+            generate_index_traits_alloc(item, tokens, &Ident::new("alloc", Span::call_site()));
         }
     }
     if item.arbitrary1 {
@@ -1001,7 +1001,7 @@ fn generate_index_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
 fn generate_index_traits_alloc(
     item: &BoundedInteger,
     tokens: &mut TokenStream,
-    alloc_or_std: Ident,
+    alloc_or_std: &Ident,
 ) {
     let ident = &item.ident;
 
