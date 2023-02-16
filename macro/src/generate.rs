@@ -1001,7 +1001,7 @@ fn generate_index_traits_std(item: &BoundedInteger, tokens: &mut TokenStream) {
 
     tokens.extend(quote! {
         impl<T ::core::ops::Index<#ident>
-            for std::vec::Vec<T>
+            for ::std::vec::Vec<T>
         {
             type Output = T;
 
@@ -1011,7 +1011,7 @@ fn generate_index_traits_std(item: &BoundedInteger, tokens: &mut TokenStream) {
             }
         }
         impl<T ::core::ops::Index<#ident>
-            for std::collections::VecDeque<T>
+            for ::std::collections::VecDeque<T>
         {
             type Output = T;
 
@@ -1022,7 +1022,7 @@ fn generate_index_traits_std(item: &BoundedInteger, tokens: &mut TokenStream) {
         }
 
         impl<T ::core::ops::IndexMut<#ident>
-            for std::vec::Vec<T>
+            for ::std::vec::Vec<T>
         {
             #[inline]
             fn index_mut(&mut self, index: #ident) -> &mut Self::Output {
@@ -1030,7 +1030,7 @@ fn generate_index_traits_std(item: &BoundedInteger, tokens: &mut TokenStream) {
             }
         }
         impl<T ::core::ops::IndexMut<#ident>
-            for std::collections::VecDeque<T>
+            for ::std::collections::VecDeque<T>
         {
             #[inline]
             fn index_mut(&mut self, index: #ident) -> &mut Self::Output {
