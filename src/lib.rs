@@ -287,8 +287,3 @@ macro_rules! block {
 }
 #[cfg(feature = "macro")]
 use block;
-
-// fn thing() {
-//     crate::bounded_integer!(pub struct Amogus{ 0..20 });
-//     let x = Amogus::new(10);
-// }
