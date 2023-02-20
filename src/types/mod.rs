@@ -813,7 +813,6 @@ macro_rules! define_bounded_integers {
                     .flatten()
             }
 
-            #[cfg(has_i128)]
             fn from_i128(n: i128) -> Option<Self> {
                 Inner::from_i128(n)
                     .map(Self::new)
@@ -844,7 +843,6 @@ macro_rules! define_bounded_integers {
                     .flatten()
             }
 
-            #[cfg(has_u128)]
             fn from_u128(n: u128) -> Option<Self> {
                 Inner::from_u128(n)
                     .map(Self::new)
@@ -905,7 +903,6 @@ macro_rules! define_bounded_integers {
                 self.get().to_i32()
             }
 
-            #[cfg(has_i128)]
             fn to_i128(&self) -> Option<i128> {
                 self.get().to_i128()
             }
@@ -926,7 +923,6 @@ macro_rules! define_bounded_integers {
                 self.get().to_u32()
             }
 
-            #[cfg(has_u128)]
             fn to_u128(&self) -> Option<u128> {
                 self.get().to_u128()
             }
@@ -1230,14 +1226,12 @@ macro_rules! define_bounded_integers {
                 assert_eq!(<B as AsPrimitive<u16>>::as_(b(4)), 4u16);
                 assert_eq!(<B as AsPrimitive<u32>>::as_(b(4)), 4u32);
                 assert_eq!(<B as AsPrimitive<u64>>::as_(b(4)), 4u64);
-                #[cfg(has_u128)]
                 assert_eq!(<B as AsPrimitive<u128>>::as_(b(4)), 4u128);
                 assert_eq!(<B as AsPrimitive<usize>>::as_(b(4)), 4usize);
                 assert_eq!(<B as AsPrimitive<i8>>::as_(b(4)), 4i8);
                 assert_eq!(<B as AsPrimitive<i16>>::as_(b(4)), 4i16);
                 assert_eq!(<B as AsPrimitive<i32>>::as_(b(4)), 4i32);
                 assert_eq!(<B as AsPrimitive<i64>>::as_(b(4)), 4i64);
-                #[cfg(not(has_i128))]
                 assert_eq!(<B as AsPrimitive<i128>>::as_(b(4)), 4i128);
                 assert_eq!(<B as AsPrimitive<isize>>::as_(b(4)), 4isize);
                 assert_eq!(<B as AsPrimitive<f32>>::as_(b(4)), 4f32);
@@ -1247,14 +1241,12 @@ macro_rules! define_bounded_integers {
                 assert_eq!(B::from_u16(4u16), Some(b(4)));
                 assert_eq!(B::from_u32(4u32), Some(b(4)));
                 assert_eq!(B::from_u64(4u64), Some(b(4)));
-                #[cfg(not(has_u128))]
                 assert_eq!(B::from_u128(4u128), Some(b(4)));
                 assert_eq!(B::from_usize(4usize), Some(b(4)));
                 assert_eq!(B::from_i8(4i8), Some(b(4)));
                 assert_eq!(B::from_i16(4i16), Some(b(4)));
                 assert_eq!(B::from_i32(4i32), Some(b(4)));
                 assert_eq!(B::from_i64(4i64), Some(b(4)));
-                #[cfg(not(has_i128))]
                 assert_eq!(B::from_i128(4i128), Some(b(4)));
                 assert_eq!(B::from_isize(4isize), Some(b(4)));
                 assert_eq!(B::from_f32(4f32), Some(b(4)));
@@ -1264,14 +1256,12 @@ macro_rules! define_bounded_integers {
                 assert_eq!(B::from_u16(16u16), None);
                 assert_eq!(B::from_u32(16u32), None);
                 assert_eq!(B::from_u64(16u64), None);
-                #[cfg(not(has_u128))]
                 assert_eq!(B::from_u128(16u128), None);
                 assert_eq!(B::from_usize(16usize), None);
                 assert_eq!(B::from_i8(16i8), None);
                 assert_eq!(B::from_i16(16i16), None);
                 assert_eq!(B::from_i32(16i32), None);
                 assert_eq!(B::from_i64(16i64), None);
-                #[cfg(not(has_i128))]
                 assert_eq!(B::from_i128(16i128), None);
                 assert_eq!(B::from_isize(16isize), None);
                 assert_eq!(B::from_f32(16f32), None);
@@ -1281,14 +1271,12 @@ macro_rules! define_bounded_integers {
                 assert_eq!(<B as NumCast>::from(4u16), Some(b(4)));
                 assert_eq!(<B as NumCast>::from(4u32), Some(b(4)));
                 assert_eq!(<B as NumCast>::from(4u64), Some(b(4)));
-                #[cfg(not(has_u128))]
                 assert_eq!(<B as NumCast>::from(4u128), Some(b(4)));
                 assert_eq!(<B as NumCast>::from(4usize), Some(b(4)));
                 assert_eq!(<B as NumCast>::from(4i8), Some(b(4)));
                 assert_eq!(<B as NumCast>::from(4i16), Some(b(4)));
                 assert_eq!(<B as NumCast>::from(4i32), Some(b(4)));
                 assert_eq!(<B as NumCast>::from(4i64), Some(b(4)));
-                #[cfg(not(has_i128))]
                 assert_eq!(<B as NumCast>::from(4i128), Some(b(4)));
                 assert_eq!(<B as NumCast>::from(4isize), Some(b(4)));
                 assert_eq!(<B as NumCast>::from(4f32), Some(b(4)));
@@ -1298,14 +1286,12 @@ macro_rules! define_bounded_integers {
                 assert_eq!(<B as NumCast>::from(16u16), None);
                 assert_eq!(<B as NumCast>::from(16u32), None);
                 assert_eq!(<B as NumCast>::from(16u64), None);
-                #[cfg(not(has_u128))]
                 assert_eq!(<B as NumCast>::from(16u128), None);
                 assert_eq!(<B as NumCast>::from(16usize), None);
                 assert_eq!(<B as NumCast>::from(16i8), None);
                 assert_eq!(<B as NumCast>::from(16i16), None);
                 assert_eq!(<B as NumCast>::from(16i32), None);
                 assert_eq!(<B as NumCast>::from(16i64), None);
-                #[cfg(not(has_i128))]
                 assert_eq!(<B as NumCast>::from(16i128), None);
                 assert_eq!(<B as NumCast>::from(16isize), None);
                 assert_eq!(<B as NumCast>::from(16f32), None);
@@ -1315,14 +1301,12 @@ macro_rules! define_bounded_integers {
                 assert_eq!(b(4).to_u16(), Some(4u16));
                 assert_eq!(b(4).to_u32(), Some(4u32));
                 assert_eq!(b(4).to_u64(), Some(4u64));
-                #[cfg(not(has_u128))]
                 assert_eq!(b(4).to_u128(), Some(4u128));
                 assert_eq!(b(4).to_usize(), Some(4usize));
                 assert_eq!(b(4).to_i8(), Some(4i8));
                 assert_eq!(b(4).to_i16(), Some(4i16));
                 assert_eq!(b(4).to_i32(), Some(4i32));
                 assert_eq!(b(4).to_i64(), Some(4i64));
-                #[cfg(not(has_i128))]
                 assert_eq!(b(4).to_i128(), Some(4i128));
                 assert_eq!(b(4).to_isize(), Some(4isize));
                 assert_eq!(b(4).to_f32(), Some(4f32));
@@ -1359,7 +1343,6 @@ macro_rules! define_bounded_integers {
     } pub use self::$inner::Bounded as $name; )* }
 }
 
-#[cfg(has_u128)]
 define_bounded_integers! {
     BoundedU8 u8 -> u8 u16 u32 u64 u128 usize i16 i32 i64 i128 isize,
     BoundedU16 u16 -> u16 u32 u64 u128 usize i32 i64 i128,
@@ -1372,20 +1355,6 @@ define_bounded_integers! {
     BoundedI32 i32 signed -> i32 i64 i128,
     BoundedI64 i64 signed -> i64 i128,
     BoundedI128 i128 signed -> i128,
-    BoundedIsize isize signed -> isize,
-}
-
-#[cfg(not(has_u128))]
-define_bounded_integers! {
-    BoundedU8 u8 -> u8 u16 u32 u64 usize i16 i32 i64 isize,
-    BoundedU16 u16 -> u16 u32 u64 usize i32 i64,
-    BoundedU32 u32 -> u32 u64 i64,
-    BoundedU64 u64 -> u64,
-    BoundedUsize usize -> usize,
-    BoundedI8 i8 signed -> i8 i16 i32 i64 isize,
-    BoundedI16 i16 signed -> i16 i32 i64 isize,
-    BoundedI32 i32 signed -> i32 i64,
-    BoundedI64 i64 signed -> i64,
     BoundedIsize isize signed -> isize,
 }
 
