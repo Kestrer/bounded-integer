@@ -66,9 +66,8 @@ macro-generated bounded integers that support it.
 const-generic bounded integers.
 - `serde1`: Implement [`Serialize`] and [`Deserialize`] for the bounded integers, making sure all
 values will never be out of bounds. This has a deprecated alias `serde`.
-- `zerocopy06`: Implement [`AsBytes`] and [`Unaligned`] for macro-generated bounded integers. We
-can't implement them for const generic bounded integers due to [limitations in
-Zerocopy](https://bugs.fuchsia.dev/p/fuchsia/issues/detail?id=84475).
+- `zerocopy06`: Implement [`AsBytes`] for all bounded integers, and [`Unaligned`] for
+macro-generated ones.
 - `step_trait`: Implement the [`Step`] trait which allows the bounded integers to be easily used
 in ranges. This will require you to use nightly and place `#![feature(step_trait)]` in your
 crate root if you use the macro.
