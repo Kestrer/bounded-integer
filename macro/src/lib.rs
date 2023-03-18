@@ -89,7 +89,7 @@ impl Parse for BoundedInteger {
 
         let mut attrs = input.call(Attribute::parse_outer)?;
 
-        let repr_pos = attrs.iter().position(|attr| attr.path.is_ident("repr"));
+        let repr_pos = attrs.iter().position(|attr| attr.path().is_ident("repr"));
         let repr = repr_pos
             .map(|pos| attrs.remove(pos).parse_args::<Repr>())
             .transpose()?;
@@ -104,17 +104,17 @@ impl Parse for BoundedInteger {
         let brace_token = braced!(range_tokens in input);
         let range: ExprRange = range_tokens.parse()?;
 
-        let Some((from_expr, to_expr)) = range.from.as_deref().zip(range.to.as_deref()) else {
+        let Some((start_expr, end_expr)) = range.start.as_deref().zip(range.end.as_deref()) else {
             return Err(Error::new_spanned(range, "Range must be closed"))
         };
-        let from = eval_expr(from_expr)?;
-        let to = eval_expr(to_expr)?;
-        let to = if let RangeLimits::HalfOpen(_) = range.limits {
-            to - 1
+        let start = eval_expr(start_expr)?;
+        let end = eval_expr(end_expr)?;
+        let end = if let RangeLimits::HalfOpen(_) = range.limits {
+            end - 1
         } else {
-            to
+            end
         };
-        if from >= to {
+        if start >= end {
             return Err(Error::new_spanned(
                 range,
                 "The start of the range must be before the end",
@@ -123,33 +123,33 @@ impl Parse for BoundedInteger {
 
         let repr = match repr {
             Some(explicit_repr) => {
-                if explicit_repr.sign == Unsigned && from.sign() == Sign::Minus {
+                if explicit_repr.sign == Unsigned && start.sign() == Sign::Minus {
                     return Err(Error::new_spanned(
-                        from_expr,
+                        start_expr,
                         "An unsigned integer cannot hold a negative value",
                     ));
                 }
 
-                if explicit_repr.minimum().map_or(false, |min| from < min) {
+                if explicit_repr.minimum().map_or(false, |min| start < min) {
                     return Err(Error::new_spanned(
-                        from_expr,
+                        start_expr,
                         format_args!(
-                            "Bound {from} is below the minimum value for the underlying type",
+                            "Bound {start} is below the minimum value for the underlying type",
                         ),
                     ));
                 }
-                if explicit_repr.maximum().map_or(false, |max| to > max) {
+                if explicit_repr.maximum().map_or(false, |max| end > max) {
                     return Err(Error::new_spanned(
-                        to_expr,
+                        end_expr,
                         format_args!(
-                            "Bound {to} is above the maximum value for the underlying type",
+                            "Bound {end} is above the maximum value for the underlying type",
                         ),
                     ));
                 }
 
                 explicit_repr
             }
-            None => Repr::smallest_repr(&from, &to).ok_or_else(|| {
+            None => Repr::smallest_repr(&start, &end).ok_or_else(|| {
                 Error::new_spanned(range, "Range is too wide to fit in any integer primitive")
             })?,
         };
@@ -169,7 +169,7 @@ impl Parse for BoundedInteger {
             kind,
             ident,
             brace_token,
-            range: from..=to,
+            range: start..=end,
         })
     }
 }
@@ -447,9 +447,7 @@ fn eval_expr(expr: &Expr) -> syn::Result<BigInt> {
             match op {
                 UnOp::Not(_) => !expr,
                 UnOp::Neg(_) => -expr,
-                UnOp::Deref(_) => {
-                    return Err(Error::new_spanned(op, "unary operator must be ! or -"));
-                }
+                _ => return Err(Error::new_spanned(op, "unary operator must be ! or -")),
             }
         }
         Expr::Binary(ExprBinary {
@@ -523,6 +521,7 @@ fn raise_one_level(vis: Visibility) -> Visibility {
 
 #[test]
 fn test_raise_one_level() {
+    #[track_caller]
     fn assert_output(input: TokenStream, output: TokenStream) {
         let tokens = raise_one_level(syn::parse2(input).unwrap()).into_token_stream();
         assert_eq!(tokens.to_string(), output.to_string());
@@ -545,7 +544,6 @@ fn test_raise_one_level() {
 
     assert_output(quote!(pub), quote!(pub));
     assert_output(quote!(pub(crate)), quote!(pub(crate)));
-    assert_output(quote!(crate), quote!(crate));
     assert_output(quote!(pub(in crate)), quote!(pub(in crate)));
     assert_output(
         quote!(pub(in crate::some::path)),
