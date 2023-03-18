@@ -1,6 +1,6 @@
 [package]
 name = "bounded-integer-macro"
-version = "0.5.3"
+version = "0.5.6"
 description = "Proc macro for `bounded-integer`. Do not use directly."
 keywords = ["bounded", "integer", "macro", "refinement"]
 license = "ISC"
