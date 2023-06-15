@@ -437,6 +437,7 @@ impl Display for ReprSizeFixed {
 fn eval_expr(expr: &Expr) -> syn::Result<BigInt> {
     Ok(match expr {
         Expr::Lit(ExprLit { lit, .. }) => match lit {
+            Lit::Byte(byte) => byte.value().into(),
             Lit::Int(int) => int.base10_parse()?,
             _ => {
                 return Err(Error::new_spanned(lit, "literal must be integer"));
