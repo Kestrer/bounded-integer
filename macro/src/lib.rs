@@ -105,7 +105,7 @@ impl Parse for BoundedInteger {
         let range: ExprRange = range_tokens.parse()?;
 
         let Some((start_expr, end_expr)) = range.start.as_deref().zip(range.end.as_deref()) else {
-            return Err(Error::new_spanned(range, "Range must be closed"))
+            return Err(Error::new_spanned(range, "Range must be closed"));
         };
         let start = eval_expr(start_expr)?;
         let end = eval_expr(end_expr)?;
@@ -114,7 +114,7 @@ impl Parse for BoundedInteger {
         } else {
             end
         };
-        if start >= end {
+        if start > end {
             return Err(Error::new_spanned(
                 range,
                 "The start of the range must be before the end",
