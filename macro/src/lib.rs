@@ -117,7 +117,7 @@ impl Parse for BoundedInteger {
         if start > end {
             return Err(Error::new_spanned(
                 range,
-                "The start of the range must be before the end",
+                "The start of the range must be before or equal to the end",
             ));
         }
 
