@@ -66,7 +66,7 @@ macro-generated bounded integers that support it.
 const-generic bounded integers.
 - `serde1`: Implement [`Serialize`] and [`Deserialize`] for the bounded integers, making sure all
 values will never be out of bounds. This has a deprecated alias `serde`.
-- `zerocopy06`: Implement [`AsBytes`] for all bounded integers, and [`Unaligned`] for
+- `zerocopy`: Implement [`IntoBytes`] for all bounded integers, and [`Unaligned`] for
 macro-generated ones.
 - `step_trait`: Implement the [`Step`] trait which allows the bounded integers to be easily used
 in ranges. This will require you to use nightly and place `#![feature(step_trait)]` in your
@@ -94,24 +94,8 @@ crate root if you use the macro.
 [`SaturatingSub`]: https://docs.rs/num-traits/0/num_traits/ops/saturating/trait.SaturatingSub.html
 [`Serialize`]: https://docs.rs/serde/1/serde/trait.Serialize.html
 [`Deserialize`]: https://docs.rs/serde/1/serde/trait.Deserialize.html
-[`AsBytes`]: https://docs.rs/zerocopy/0.6/zerocopy/trait.AsBytes.html
+[`IntoBytes`]: https://docs.rs/zerocopy/0.8/zerocopy/trait.IntoBytes.html
 [`Unaligned`]: https://docs.rs/zerocopy/0.6/zerocopy/trait.Unaligned.html
 [`Step`]: https://doc.rust-lang.org/nightly/core/iter/trait.Step.html
 [`Error`]: https://doc.rust-lang.org/stable/std/error/trait.Error.html
 [`ParseError`]: https://docs.rs/bounded-integer/*/bounded_integer/struct.ParseError.html
-
-## License
-
-Copyright © 2016, Curtis McEnroe <curtis@cmcenroe.me>
-
-Permission to use, copy, modify, and/or distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
-
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
