@@ -19,4 +19,4 @@ generate_tests = []
 proc-macro2 = "1.0.24"
 syn = { version = "2.0.0", features = ["proc-macro", "parsing", "printing", "full"], default-features = false }
 quote = "1.0.9"
-num-bigint = "0.4.2"
+num-bigint = "0.4.6"

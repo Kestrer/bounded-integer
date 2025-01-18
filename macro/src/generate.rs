@@ -1,6 +1,5 @@
 use proc_macro2::{Ident, Punct, Spacing, Span, TokenStream};
 use quote::{quote, quote_spanned, ToTokens};
-use syn::Token;
 
 use num_bigint::BigInt;
 
@@ -95,7 +94,11 @@ fn generate_item(item: &BoundedInteger, tokens: &mut TokenStream) {
 
     match &item.kind {
         Kind::Struct(_) => {
-            tokens.extend(quote_spanned!(item.brace_token.span=> (::core::primitive::#repr);));
+            let span = item.brace_token.span;
+            tokens.extend(match item.range.contains(&BigInt::ZERO) {
+                false => quote_spanned!(span=> (::core::num::NonZero<::core::primitive::#repr>);),
+                true => quote_spanned!(span=> (::core::primitive::#repr);),
+            });
         }
         Kind::Enum(_) => {
             let mut inner_tokens = TokenStream::new();
@@ -173,7 +176,10 @@ fn generate_min_max(item: &BoundedInteger, tokens: &mut TokenStream) {
     );
 
     let (min, max) = match &item.kind {
-        Kind::Struct(_) => (quote!(Self(Self::MIN_VALUE)), quote!(Self(Self::MAX_VALUE))),
+        Kind::Struct(_) => (
+            quote!(unsafe { Self::new_unchecked(Self::MIN_VALUE) }),
+            quote!(unsafe { Self::new_unchecked(Self::MAX_VALUE) }),
+        ),
         Kind::Enum(_) => {
             let (min, max) = (
                 enum_variant(item.range.start()),
@@ -196,11 +202,6 @@ fn generate_unchecked_constructors(item: &BoundedInteger, tokens: &mut TokenStre
     let repr = &item.repr;
     let vis = &item.vis;
 
-    let new_unchecked_body = match item.kind {
-        Kind::Struct(_) => quote!(Self(n)),
-        Kind::Enum(_) => quote!(::core::mem::transmute::<::core::primitive::#repr, Self>(n)),
-    };
-
     let safety_doc = "
 # Safety
 
@@ -213,24 +214,25 @@ The value must not be outside the valid range of values; it must not be less tha
         #[doc = #safety_doc]
         #[must_use]
         #vis const unsafe fn new_unchecked(n: ::core::primitive::#repr) -> Self {
-            #new_unchecked_body
+            ::core::debug_assert!(Self::in_range(n));
+            unsafe { ::core::mem::transmute::<::core::primitive::#repr, Self>(n) }
         }
 
         /// Creates a shared reference to a bounded integer from a shared reference to a primitive.
         #[doc = #safety_doc]
         #[must_use]
-        #vis unsafe fn new_ref_unchecked(n: &::core::primitive::#repr) -> &Self {
+        #vis const unsafe fn new_ref_unchecked(n: &::core::primitive::#repr) -> &Self {
             ::core::debug_assert!(Self::in_range(*n));
-            &*(n as *const ::core::primitive::#repr as *const Self)
+            unsafe { &*(n as *const ::core::primitive::#repr as *const Self) }
         }
 
         /// Creates a mutable reference to a bounded integer from a mutable reference to a
         /// primitive.
         #[doc = #safety_doc]
         #[must_use]
-        #vis unsafe fn new_mut_unchecked(n: &mut ::core::primitive::#repr) -> &mut Self {
+        #vis const unsafe fn new_mut_unchecked(n: &mut ::core::primitive::#repr) -> &mut Self {
             ::core::debug_assert!(Self::in_range(*n));
-            &mut *(n as *mut ::core::primitive::#repr as *mut Self)
+            unsafe { &mut *(n as *mut ::core::primitive::#repr as *mut Self) }
         }
     });
 }
@@ -238,58 +240,6 @@ The value must not be outside the valid range of values; it must not be less tha
 fn generate_checked_constructors(item: &BoundedInteger, tokens: &mut TokenStream) {
     let repr = &item.repr;
     let vis = &item.vis;
-
-    let (new_body, new_saturating_body) = match item.kind {
-        Kind::Struct(_) => (
-            quote! {
-                if Self::in_range(n) {
-                    ::core::option::Option::Some(Self(n))
-                } else {
-                    ::core::option::Option::None
-                }
-            },
-            quote! {
-                if n < Self::MIN_VALUE {
-                    Self::MIN
-                } else if n > Self::MAX_VALUE {
-                    Self::MAX
-                } else {
-                    Self(n)
-                }
-            },
-        ),
-        Kind::Enum(_) => {
-            let mut new_arms = TokenStream::new();
-            let mut new_saturating_arms = quote! {
-                ::core::primitive::#repr::MIN..=Self::MIN_VALUE => Self::MIN,
-                Self::MAX_VALUE..=::core::primitive::#repr::MAX => Self::MAX,
-            };
-
-            let mut variant = item.range.start().clone();
-            while variant <= *item.range.end() {
-                let variant_value = item.repr.number_literal(&variant);
-                let variant_name = enum_variant(&variant);
-
-                new_arms.extend(quote! {
-                    #variant_value => ::core::option::Option::Some(Self::#variant_name),
-                });
-                new_saturating_arms.extend(quote! {
-                    #variant_value => Self::#variant_name,
-                });
-
-                variant += 1;
-            }
-
-            new_arms.extend(quote! {
-                _ => ::core::option::Option::None,
-            });
-
-            (
-                quote! { match n { #new_arms } },
-                quote! { match n { #new_saturating_arms } },
-            )
-        }
-    };
 
     tokens.extend(quote! {
         /// Checks whether the given value is in the range of the bounded integer.
@@ -304,18 +254,23 @@ fn generate_checked_constructors(item: &BoundedInteger, tokens: &mut TokenStream
         #[must_use]
         #[inline]
         #vis const fn new(n: ::core::primitive::#repr) -> ::core::option::Option<Self> {
-            #new_body
+            if Self::in_range(n) {
+                ::core::option::Option::Some(unsafe { Self::new_unchecked(n) })
+            } else {
+                ::core::option::Option::None
+            }
         }
 
         /// Creates a reference to a bounded integer from a reference to a primitive if the
         /// given value is within the range [[`MIN`](Self::MIN), [`MAX`](Self::MAX)].
         #[must_use]
         #[inline]
-        #vis fn new_ref(n: &::core::primitive::#repr) -> ::core::option::Option<&Self> {
-            Self::in_range(*n).then(|| {
-                // SAFETY: We just asserted that the value is in range.
-                unsafe { Self::new_ref_unchecked(n) }
-            })
+        #vis const fn new_ref(n: &::core::primitive::#repr) -> ::core::option::Option<&Self> {
+            if Self::in_range(*n) {
+                ::core::option::Option::Some(unsafe { Self::new_ref_unchecked(n) })
+            } else {
+                ::core::option::Option::None
+            }
         }
 
         /// Creates a mutable reference to a bounded integer from a mutable reference to a
@@ -323,11 +278,12 @@ fn generate_checked_constructors(item: &BoundedInteger, tokens: &mut TokenStream
         /// [[`MIN`](Self::MIN), [`MAX`](Self::MAX)].
         #[must_use]
         #[inline]
-        #vis fn new_mut(n: &mut ::core::primitive::#repr) -> ::core::option::Option<&mut Self> {
-            Self::in_range(*n).then(move || {
-                // SAFETY: We just asserted that the value is in range.
-                unsafe { Self::new_mut_unchecked(n) }
-            })
+        #vis const fn new_mut(n: &mut ::core::primitive::#repr) -> ::core::option::Option<&mut Self> {
+            if Self::in_range(*n) {
+                ::core::option::Option::Some(unsafe { Self::new_mut_unchecked(n) })
+            } else {
+                ::core::option::Option::None
+            }
         }
 
         /// Creates a bounded integer by setting the value to [`MIN`](Self::MIN) or
@@ -335,7 +291,13 @@ fn generate_checked_constructors(item: &BoundedInteger, tokens: &mut TokenStream
         #[must_use]
         #[inline]
         #vis const fn new_saturating(n: ::core::primitive::#repr) -> Self {
-            #new_saturating_body
+            if n < Self::MIN_VALUE {
+                Self::MIN
+            } else if n > Self::MAX_VALUE {
+                Self::MAX
+            } else {
+                unsafe { Self::new_unchecked(n) }
+            }
         }
     });
 }
@@ -374,34 +336,19 @@ fn generate_getters(item: &BoundedInteger, tokens: &mut TokenStream) {
     let repr = &item.repr;
     let vis = &item.vis;
 
-    let get_body = match item.kind {
-        Kind::Struct(_) => quote!(self.0),
-        Kind::Enum(_) => quote!(self as _),
-    };
-
     tokens.extend(quote! {
         /// Returns the value of the bounded integer as a primitive type.
         #[must_use]
         #[inline]
         #vis const fn get(self) -> ::core::primitive::#repr {
-            #get_body
+            unsafe { ::core::mem::transmute::<Self, ::core::primitive::#repr>(self) }
         }
-    });
 
-    let (get_ref_const, get_ref_body) = match item.kind {
-        Kind::Struct(_) => (Some(Token![const](Span::call_site())), quote!(&self.0)),
-        Kind::Enum(_) => (
-            None,
-            quote!(unsafe { &*(self as *const Self as *const ::core::primitive::#repr) }),
-        ),
-    };
-
-    tokens.extend(quote! {
         /// Returns a shared reference to the value of the bounded integer.
         #[must_use]
         #[inline]
-        #vis #get_ref_const fn get_ref(&self) -> &::core::primitive::#repr {
-            #get_ref_body
+        #vis const fn get_ref(&self) -> &::core::primitive::#repr {
+            unsafe { &*(self as *const Self as *const ::core::primitive::#repr) }
         }
 
         /// Returns a mutable reference to the value of the bounded integer.
@@ -411,8 +358,8 @@ fn generate_getters(item: &BoundedInteger, tokens: &mut TokenStream) {
         /// This value must never be set to a value beyond the range of the bounded integer.
         #[must_use]
         #[inline]
-        #vis unsafe fn get_mut(&mut self) -> &mut ::core::primitive::#repr {
-            &mut *(self as *mut Self as *mut ::core::primitive::#repr)
+        #vis const unsafe fn get_mut(&mut self) -> &mut ::core::primitive::#repr {
+            unsafe { &mut *(self as *mut Self as *mut ::core::primitive::#repr) }
         }
     });
 }
@@ -427,11 +374,7 @@ fn generate_inherent_operators(item: &BoundedInteger, tokens: &mut TokenStream) 
             #[must_use]
             #[inline]
             #vis const fn abs(self) -> Self {
-                // TODO: expect isn't stable as const fn yet
-                match Self::new(self.get().abs()) {
-                    ::core::option::Option::Some(val) => val,
-                    ::core::option::Option::None => ::core::panic!("Absolute value out of range"),
-                }
+                self.checked_abs().expect("absolute value should be in range")
             }
         });
     }
@@ -442,32 +385,21 @@ fn generate_inherent_operators(item: &BoundedInteger, tokens: &mut TokenStream) 
         #[must_use]
         #[inline]
         #vis const fn pow(self, exp: ::core::primitive::u32) -> Self {
-            // TODO: expect isn't stable as const fn yet
-            match Self::new(self.get().pow(exp)) {
-                ::core::option::Option::Some(val) => val,
-                ::core::option::Option::None => ::core::panic!("Value raised to power out of range"),
-            }
+            self.checked_pow(exp).expect("value raised to power should be in range")
         }
         /// Calculates the quotient of Euclidean division of `self` by `rhs`. Panics if `rhs`
         /// is 0 or the result is out of range.
         #[must_use]
         #[inline]
         #vis const fn div_euclid(self, rhs: ::core::primitive::#repr) -> Self {
-            // TODO: expect isn't stable as const fn yet
-            match Self::new(self.get().div_euclid(rhs)) {
-                ::core::option::Option::Some(val) => val,
-                ::core::option::Option::None => ::core::panic!("Attempted to divide out of range"),
-            }
+            self.checked_div_euclid(rhs).expect("division should be in range")
         }
         /// Calculates the least nonnegative remainder of `self (mod rhs)`. Panics if `rhs` is 0
         /// or the result is out of range.
         #[must_use]
         #[inline]
         #vis const fn rem_euclid(self, rhs: ::core::primitive::#repr) -> Self {
-            match Self::new(self.get().rem_euclid(rhs)) {
-                ::core::option::Option::Some(val) => val,
-                ::core::option::Option::None => ::core::panic!("Attempted to divide with remainder out of range"),
-            }
+            self.checked_rem_euclid(rhs).expect("division with remainer should be in range")
         }
     });
 }
@@ -580,8 +512,8 @@ const CHECKED_OPERATORS: &[CheckedOperator] = &checked_operators! {
     /** negation               */ fn neg        (    ) SignedSaturating,
     /** absolute value         */ fn abs        (    ) Signed          ,
     /** exponentiation         */ fn pow        (u32 ) All             ,
-    /** shift left             */ fn shl        (u32) NoSaturating    ,
-    /** shift right            */ fn shr        (u32) NoSaturating    ,
+    /** shift left             */ fn shl        (u32 ) NoSaturating    ,
+    /** shift right            */ fn shr        (u32 ) NoSaturating    ,
 };
 
 fn generate_ops_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
@@ -605,7 +537,7 @@ fn generate_ops_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
                 |trait_name, method| {
                     quote! {
                         Self::new(<#full_repr as ::core::ops::#trait_name>::#method(self.get(), rhs))
-                            .expect(::core::concat!("Attempted to ", #description, " out of range"))
+                            .expect(::core::concat!("result of ", #description, " should be in range"))
                     }
                 },
                 tokens,
@@ -647,11 +579,8 @@ fn generate_ops_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
                 &method,
                 &item.ident,
                 &quote! {
-                    // TODO: expect isn't stable as const fn yet
-                    match Self::new(<#full_repr as ::core::ops::#trait_name>::#method(self.get())) {
-                        ::core::option::Option::Some(val) => val,
-                        ::core::option::Option::None => ::core::panic!(::core::concat!("Attempted to ", #description, " out of range")),
-                    }
+                    Self::new(<#full_repr as ::core::ops::#trait_name>::#method(self.get()))
+                        .expect(::core::concat!("result of ", #description, " should be in range"))
                 },
                 tokens,
             );
@@ -829,7 +758,7 @@ fn generate_as_ref_borrow(item: &BoundedInteger, tokens: &mut TokenStream) {
 fn generate_default(item: &BoundedInteger, tokens: &mut TokenStream) {
     let ident = &item.ident;
 
-    if item.range.contains(&BigInt::from(0)) {
+    if item.range.contains(&BigInt::ZERO) {
         tokens.extend(quote! {
             impl ::core::default::Default for #ident {
                 fn default() -> Self {
@@ -844,7 +773,7 @@ fn generate_iter_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
     let ident = &item.ident;
     let repr = &item.repr;
 
-    if item.range.contains(&BigInt::from(0)) {
+    if item.range.contains(&BigInt::ZERO) {
         tokens.extend(quote! {
             impl ::core::iter::Sum for #ident {
                 fn sum<I: ::core::iter::Iterator<Item = Self>>(iter: I) -> Self {
@@ -912,7 +841,7 @@ fn generate_iter_traits(item: &BoundedInteger, tokens: &mut TokenStream) {
         tokens.extend(quote! {
             impl ::core::iter::Step for #ident {
                 #[inline]
-                fn steps_between(start: &Self, end: &Self) -> ::core::option::Option<::core::primitive::usize> {
+                fn steps_between(start: &Self, end: &Self) -> (::core::primitive::usize, ::core::option::Option<::core::primitive::usize>) {
                     ::core::iter::Step::steps_between(&start.get(), &end.get())
                 }
                 #[inline]
@@ -1082,7 +1011,7 @@ fn generate_bytemuck1(item: &BoundedInteger, tokens: &mut TokenStream) {
         }
     });
 
-    if item.range.contains(&BigInt::from(0)) {
+    if item.range.contains(&BigInt::ZERO) {
         tokens.extend(quote! {
             unsafe impl #bytemuck::Zeroable for #ident {}
         });
@@ -1137,18 +1066,35 @@ fn generate_serde1(item: &BoundedInteger, tokens: &mut TokenStream) {
 fn generate_tests(item: &BoundedInteger, tokens: &mut TokenStream) {
     let mut tests = TokenStream::new();
 
+    generate_test_layout(item, &mut tests);
     generate_test_range(item, &mut tests);
     generate_test_arithmetic(item, &mut tests);
 
     tokens.extend(quote! {
         mod tests {
             use super::*;
-            use ::core::{assert, assert_eq};
-            use ::core::primitive::*;
+            use ::core::mem::size_of;
             use ::core::option::Option::{self, Some, None};
+            use ::core::primitive::*;
+            use ::core::{assert, assert_eq};
             #tests
         }
     });
+}
+
+fn generate_test_layout(item: &BoundedInteger, tokens: &mut TokenStream) {
+    let ident = &item.ident;
+    let repr = &item.repr;
+
+    tokens.extend(quote! {
+        const _: [(); size_of::<#repr>()] = [(); size_of::<#ident>()];
+    });
+
+    if !item.range.contains(&BigInt::ZERO) {
+        tokens.extend(quote! {
+            const _: [(); size_of::<#repr>()] = [(); size_of::<Option<#ident>>()];
+        });
+    }
 }
 
 fn generate_test_range(item: &BoundedInteger, tokens: &mut TokenStream) {
@@ -1389,6 +1335,19 @@ mod tests {
                 #derives
                 #[repr(transparent)]
                 pub struct S(::core::primitive::i8);
+            },
+        );
+
+        assert_result(
+            generate_item,
+            quote! {
+                #[repr(i16)]
+                pub struct S { -3..-1 }
+            },
+            quote! {
+                #derives
+                #[repr(transparent)]
+                pub struct S(::core::num::NonZero<::core::primitive::i16>);
             },
         );
     }

@@ -2,6 +2,8 @@
 //!
 //! This crate is unstable and must not be used directly.
 #![warn(clippy::pedantic, rust_2018_idioms, unused_qualifications)]
+#![allow(clippy::single_match_else, clippy::match_bool)]
+#![allow(unused)]
 
 use std::borrow::Borrow;
 use std::cmp;
@@ -105,7 +107,7 @@ impl Parse for BoundedInteger {
         let range: ExprRange = range_tokens.parse()?;
 
         let Some((start_expr, end_expr)) = range.start.as_deref().zip(range.end.as_deref()) else {
-            return Err(Error::new_spanned(range, "Range must be closed"))
+            return Err(Error::new_spanned(range, "Range must be closed"));
         };
         let start = eval_expr(start_expr)?;
         let end = eval_expr(end_expr)?;
@@ -130,7 +132,7 @@ impl Parse for BoundedInteger {
                     ));
                 }
 
-                if explicit_repr.minimum().map_or(false, |min| start < min) {
+                if explicit_repr.minimum().is_some_and(|min| start < min) {
                     return Err(Error::new_spanned(
                         start_expr,
                         format_args!(
@@ -138,7 +140,7 @@ impl Parse for BoundedInteger {
                         ),
                     ));
                 }
-                if explicit_repr.maximum().map_or(false, |max| end > max) {
+                if explicit_repr.maximum().is_some_and(|max| end > max) {
                     return Err(Error::new_spanned(
                         end_expr,
                         format_args!(

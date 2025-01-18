@@ -34,5 +34,8 @@ serde = ["serde1"]
 all-features = true
 rustdoc-args = ["--cfg", "doc_cfg"]
 
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(doc_cfg)'] }
+
 [workspace]
 members = ["macro"]

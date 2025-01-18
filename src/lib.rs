@@ -53,20 +53,20 @@
 //! - `macro`: Enable the [`bounded_integer!`] macro.
 //! - `types`: Enable the bounded integer types that use const generics.
 //! - `arbitrary1`: Implement [`Arbitrary`] for the bounded integers. This is useful when using
-//! bounded integers as fuzzing inputs.
+//!   bounded integers as fuzzing inputs.
 //! - `bytemuck1`: Implement [`Contiguous`] for all bounded integers, and [`Zeroable`] for
-//! macro-generated bounded integers that support it.
+//!   macro-generated bounded integers that support it.
 //! - `num-traits02`: Implement [`Bounded`], [`AsPrimitive`], [`FromPrimitive`], [`NumCast`],
-//! [`ToPrimitive`], [`CheckedAdd`], [`CheckedDiv`], [`CheckedMul`], [`CheckedNeg`], [`CheckedRem`],
-//! [`CheckedSub`], [`MulAdd`], [`SaturatingAdd`], [`SaturatingMul`] and [`SaturatingSub`] for all
-//! const-generic bounded integers.
+//!   [`ToPrimitive`], [`CheckedAdd`], [`CheckedDiv`], [`CheckedMul`], [`CheckedNeg`],
+//!   [`CheckedRem`], [`CheckedSub`], [`MulAdd`], [`SaturatingAdd`], [`SaturatingMul`] and
+//!   [`SaturatingSub`] for all const-generic bounded integers.
 //! - `serde1`: Implement [`Serialize`] and [`Deserialize`] for the bounded integers, making sure all
-//! values will never be out of bounds. This has a deprecated alias `serde`.
+//!   values will never be out of bounds. This has a deprecated alias `serde`.
 //! - `zerocopy06`: Implement [`AsBytes`] for all bounded integers, and [`Unaligned`] for
-//! macro-generated ones.
+//!   macro-generated ones.
 //! - `step_trait`: Implement the [`Step`] trait which allows the bounded integers to be easily used
-//! in ranges. This will require you to use nightly and place `#![feature(step_trait)]` in your
-//! crate root if you use the macro.
+//!   in ranges. This will require you to use nightly and place `#![feature(step_trait)]` in your
+//!   crate root if you use the macro.
 //!
 //! [`bounded_integer!`]: https://docs.rs/bounded-integer/*/bounded_integer/macro.bounded_integer.html
 //! [`examples`]: https://docs.rs/bounded-integer/*/bounded_integer/examples/
@@ -210,10 +210,10 @@ pub mod examples;
 /// # Limitations
 ///
 /// - Both bounds of ranges must be closed and a simple const expression involving only literals and
-/// the following operators:
+///   the following operators:
 ///     - Negation (`-x`)
 ///     - Addition (`x+y`), subtraction (`x-y`), multiplication (`x*y`), division (`x/y`) and
-///     remainder (`x%y`).
+///       remainder (`x%y`).
 ///     - Bitwise not (`!x`), XOR (`x^y`), AND (`x&y`) and OR (`x|y`).
 #[cfg(feature = "macro")]
 #[cfg_attr(doc_cfg, doc(cfg(feature = "macro")))]

@@ -2,6 +2,7 @@ use core::fmt::{self, Display, Formatter};
 #[cfg(feature = "std")]
 use std::error::Error;
 
+#[cfg_attr(not(any(feature = "types", feature = "macro")), expect(unused))]
 pub trait FromStrRadix: Sized {
     fn from_str_radix(s: &str, radix: u32) -> Result<Self, ParseError>;
 }
@@ -122,11 +123,13 @@ pub enum ParseErrorKind {
     BelowMin,
 }
 
+#[cfg_attr(not(any(feature = "types", feature = "macro")), expect(unused))]
 pub fn error_below_min() -> ParseError {
     ParseError {
         kind: ParseErrorKind::BelowMin,
     }
 }
+#[cfg_attr(not(any(feature = "types", feature = "macro")), expect(unused))]
 pub fn error_above_max() -> ParseError {
     ParseError {
         kind: ParseErrorKind::AboveMax,
