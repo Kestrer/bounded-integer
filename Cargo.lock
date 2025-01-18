@@ -16,7 +16,7 @@ checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
 
 [[package]]
 name = "bounded-integer"
-version = "0.5.7"
+version = "0.5.8"
 dependencies = [
  "arbitrary",
  "bounded-integer-macro",
@@ -28,7 +28,7 @@ dependencies = [
 
 [[package]]
 name = "bounded-integer-macro"
-version = "0.5.6"
+version = "0.5.8"
 dependencies = [
  "num-bigint",
  "proc-macro2",
