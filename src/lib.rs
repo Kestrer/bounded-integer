@@ -62,8 +62,8 @@
 //!   [`SaturatingSub`] for all const-generic bounded integers.
 //! - `serde1`: Implement [`Serialize`] and [`Deserialize`] for the bounded integers, making sure all
 //!   values will never be out of bounds. This has a deprecated alias `serde`.
-//! - `zerocopy06`: Implement [`AsBytes`] for all bounded integers, and [`Unaligned`] for
-//!   macro-generated ones.
+//! - `zerocopy`: Implement [`IntoBytes`] for all bounded integers,
+//!   and [`Unaligned`] for suitable macro-generated ones.
 //! - `step_trait`: Implement the [`Step`] trait which allows the bounded integers to be easily used
 //!   in ranges. This will require you to use nightly and place `#![feature(step_trait)]` in your
 //!   crate root if you use the macro.
@@ -90,8 +90,8 @@
 //! [`SaturatingSub`]: https://docs.rs/num-traits/0.2/num_traits/ops/saturating/trait.SaturatingSub.html
 //! [`Serialize`]: https://docs.rs/serde/1/serde/trait.Serialize.html
 //! [`Deserialize`]: https://docs.rs/serde/1/serde/trait.Deserialize.html
-//! [`AsBytes`]: https://docs.rs/zerocopy/0.6/zerocopy/trait.AsBytes.html
-//! [`Unaligned`]: https://docs.rs/zerocopy/0.6/zerocopy/trait.Unaligned.html
+//! [`IntoBytes`]: https://docs.rs/zerocopy/0.8/zerocopy/trait.IntoBytes.html
+//! [`Unaligned`]: https://docs.rs/zerocopy/0.8/zerocopy/trait.Unaligned.html
 //! [`Step`]: https://doc.rust-lang.org/nightly/core/iter/trait.Step.html
 //! [`Error`]: https://doc.rust-lang.org/stable/std/error/trait.Error.html
 //! [`ParseError`]: https://docs.rs/bounded-integer/*/bounded_integer/struct.ParseError.html
@@ -126,8 +126,8 @@ pub mod __private {
     #[cfg(feature = "serde1")]
     pub use ::serde1;
 
-    #[cfg(feature = "zerocopy06")]
-    pub use ::zerocopy06;
+    #[cfg(feature = "zerocopy")]
+    pub use ::zerocopy;
 
     pub use bounded_integer_macro::bounded_integer as proc_macro;
 
@@ -238,7 +238,7 @@ block! {
     let bytemuck1: ident = cfg_bool!(feature = "bytemuck1");
     let serde1: ident = cfg_bool!(feature = "serde1");
     let std: ident = cfg_bool!(feature = "std");
-    let zerocopy06: ident = cfg_bool!(feature = "zerocopy06");
+    let zerocopy: ident = cfg_bool!(feature = "zerocopy");
     let step_trait: ident = cfg_bool!(feature = "step_trait");
     let d: tt = dollar!();
 
@@ -247,7 +247,7 @@ block! {
     macro_rules! __bounded_integer_inner2 {
         ($d($d tt:tt)*) => {
             $crate::__private::proc_macro! {
-                [$crate] $alloc $arbitrary1 $bytemuck1 $serde1 $std $zerocopy06 $step_trait $d($d tt)*
+                [$crate] $alloc $arbitrary1 $bytemuck1 $serde1 $std $zerocopy $step_trait $d($d tt)*
             }
         };
     }

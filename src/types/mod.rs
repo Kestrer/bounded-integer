@@ -175,7 +175,7 @@ macro_rules! define_bounded_integers {
         #[cfg_attr(doc_cfg, doc(cfg(feature = "types")))]
         #[repr(transparent)]
         #[derive(Debug, Hash, Clone, Copy, Eq, Ord)]
-        #[cfg_attr(feature = "zerocopy06", derive(zerocopy06::AsBytes))]
+        #[cfg_attr(feature = "zerocopy", derive(zerocopy::IntoBytes))]
         pub struct Bounded<const MIN: Inner, const MAX: Inner>(Inner);
 
         impl<const MIN: Inner, const MAX: Inner> Bounded<MIN, MAX> {

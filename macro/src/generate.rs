@@ -46,16 +46,10 @@ fn generate_item(item: &BoundedInteger, tokens: &mut TokenStream) {
     let repr = &item.repr;
     let crate_path = &item.crate_path;
 
-    if item.zerocopy06 {
-        let zerocopy = quote!(#crate_path::__private::zerocopy06);
+    if item.zerocopy {
+        let zerocopy = quote!(#crate_path::__private::zerocopy);
 
-        // Zerocopy is not hygienic: https://bugs.fuchsia.dev/p/fuchsia/issues/detail?id=84476
-        tokens.extend(quote! {
-            use ::core::marker::Sized;
-            use #zerocopy as zerocopy;
-        });
-
-        tokens.extend(quote!(#[derive(#zerocopy::AsBytes)]));
+        tokens.extend(quote!(#[derive(#zerocopy::IntoBytes)]));
         if let ReprSize::Fixed(ReprSizeFixed::Fixed8) = item.repr.size {
             tokens.extend(quote!(#[derive(#zerocopy::Unaligned)]));
         }
