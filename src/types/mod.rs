@@ -690,7 +690,7 @@ macro_rules! define_bounded_integers {
         #[cfg_attr(doc_cfg, doc(cfg(feature = "step_trait")))]
         impl<const MIN: Inner, const MAX: Inner> iter::Step for Bounded<MIN, MAX> {
             #[inline]
-            fn steps_between(start: &Self, end: &Self) -> Option<usize> {
+            fn steps_between(start: &Self, end: &Self) -> (usize, Option<usize>) {
                 iter::Step::steps_between(&start.get(), &end.get())
             }
             #[inline]

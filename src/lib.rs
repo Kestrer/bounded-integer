@@ -143,6 +143,10 @@ pub mod examples;
 /// upper bound can be inclusive (`x..=y`) or exclusive (`x..y`). The attributes and visibility
 /// (e.g. `pub`) of the type are forwarded directly to the output type.
 ///
+/// If the type is a struct and the bounded integer's range does not include zero,
+/// the struct will have a niche at zero,
+/// allowing for `Option<BoundedInteger>` to be the same size as `BoundedInteger` itself.
+///
 /// See the [`examples`] module for examples of what this macro generates.
 ///
 /// # Examples
