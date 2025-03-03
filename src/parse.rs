@@ -75,7 +75,7 @@ from_str_radix_impl! { u8 u16 u32 u64 u128 usize i8 i16 i32 i64 i128 isize }
 /// This is the error type of all bounded integers' `from_str_radix()` functions (such as
 /// [`BoundedI8::from_str_radix`](crate::BoundedI8::from_str_radix)) as well as their
 /// [`FromStr`](std::str::FromStr) implementations.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParseError {
     kind: ParseErrorKind,
 }
