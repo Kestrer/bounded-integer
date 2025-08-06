@@ -1,158 +1,30 @@
-macro_rules! bin_op_variations {
-    ([$($generics:tt)*] $lhs:ty, $rhs:ty, $op:ident::$method:ident/$op_assign:ident::$method_assign:ident) => {
-        impl<$($generics)*> $op<$rhs> for &$lhs {
-            type Output = $lhs;
-            #[inline]
-            fn $method(self, rhs: $rhs) -> Self::Output {
-                <$lhs as $op<$rhs>>::$method(*self, rhs)
-            }
-        }
-        impl<$($generics)*> $op<&$rhs> for $lhs {
-            type Output = $lhs;
-            #[inline]
-            fn $method(self, rhs: &$rhs) -> Self::Output {
-                <$lhs as $op<$rhs>>::$method(self, *rhs)
-            }
-        }
-        impl<$($generics)*> $op<&$rhs> for &$lhs {
-            type Output = $lhs;
-            #[inline]
-            fn $method(self, rhs: &$rhs) -> Self::Output {
-                <$lhs as $op<$rhs>>::$method(*self, *rhs)
-            }
-        }
-
-        impl<$($generics)*> $op_assign<$rhs> for $lhs {
-            #[inline]
-            fn $method_assign(&mut self, rhs: $rhs) {
-                *self = <Self as $op<$rhs>>::$method(*self, rhs);
-            }
-        }
-        impl<$($generics)*> $op_assign<&$rhs> for $lhs {
-            #[inline]
-            fn $method_assign(&mut self, rhs: &$rhs) {
-                *self = <Self as $op<$rhs>>::$method(*self, *rhs);
-            }
-        }
-    }
+define_bounded_integers! {
+    BoundedU8(u8, Into(u8 u16 u32 u64 u128 usize i16 i32 i64 i128 isize), wide(u16),),
+    BoundedU16(u16, Into(u16 u32 u64 u128 usize i32 i64 i128), wide(u32),),
+    BoundedU32(u32, Into(u32 u64 u128 i64 i128), wide(u64),),
+    BoundedU64(u64, Into(u64 u128 i128), wide(u128),),
+    BoundedU128(u128, Into(u128),),
+    BoundedI8(i8, signed, Into(i8 i16 i32 i64 i128 isize), wide(i16),),
+    BoundedI16(i16, signed, Into(i16 i32 i64 i128 isize), wide(i32),),
+    BoundedI32(i32, signed, Into(i32 i64 i128), wide(i64),),
+    BoundedI64(i64, signed, Into(i64 i128), wide(i128),),
+    BoundedI128(i128, signed, Into(i128),),
 }
 
-macro_rules! impl_bin_op {
-    ($op:ident::$method:ident/$op_assign:ident::$method_assign:ident, $desc:literal) => {
-        use core::ops::{$op, $op_assign};
-
-        impl<const MIN: Inner, const MAX: Inner> $op<Inner> for Bounded<MIN, MAX> {
-            type Output = Self;
-            #[inline]
-            fn $method(self, rhs: Inner) -> Self::Output {
-                Self::new(self.get().$method(rhs))
-                    .expect(concat!("Attempted to ", $desc, " out of range"))
-            }
-        }
-        bin_op_variations!(
-            [const MIN: Inner, const MAX: Inner]
-            Bounded<MIN, MAX>, Inner, $op::$method/$op_assign::$method_assign
-        );
-
-        impl<const MIN: Inner, const MAX: Inner> $op<Bounded<MIN, MAX>> for Inner {
-            type Output = Self;
-            #[inline]
-            fn $method(self, rhs: Bounded<MIN, MAX>) -> Self::Output {
-                self.$method(rhs.get())
-            }
-        }
-        bin_op_variations! {
-            [const MIN: Inner, const MAX: Inner]
-            Inner, Bounded<MIN, MAX>, $op::$method/$op_assign::$method_assign
-        }
-
-        impl<const L_MIN: Inner, const L_MAX: Inner, const R_MIN: Inner, const R_MAX: Inner>
-            $op<Bounded<R_MIN, R_MAX>> for Bounded<L_MIN, L_MAX>
-        {
-            type Output = Self;
-             #[inline]
-            fn $method(self, rhs: Bounded<R_MIN, R_MAX>) -> Self::Output {
-                Self::new(self.get().$method(rhs))
-                    .expect(concat!("Attempted to ", $desc, " out of range"))
-            }
-        }
-        bin_op_variations! {
-            [const L_MIN: Inner, const L_MAX: Inner, const R_MIN: Inner, const R_MAX: Inner]
-            Bounded<L_MIN, L_MAX>, Bounded<R_MIN, R_MAX>, $op::$method/$op_assign::$method_assign
-        }
-    };
+#[cfg(target_pointer_width = "16")]
+define_bounded_integers! {
+    BoundedUsize(usize, Into(usize), wide(u32),),
+    BoundedIsize(isize, Into(isize), wide(i32),),
 }
-
-macro_rules! impl_shift_bin_op {
-    (u32, $op:ident::$method:ident/$op_assign:ident::$method_assign:ident, $desc:literal) => {
-        impl_bin_op!($op::$method/$op_assign::$method_assign, $desc);
-    };
-    ($inner:ident, $op:ident::$method:ident/$op_assign:ident::$method_assign:ident, $desc:literal) => {
-        impl_bin_op!($op::$method/$op_assign::$method_assign, $desc);
-
-        // Implementation used by checked shift operations
-        impl<const MIN: Inner, const MAX: Inner> $op<u32> for Bounded<MIN, MAX> {
-            type Output = Self;
-            #[inline]
-            fn $method(self, rhs: u32) -> Self::Output {
-                Self::new(self.get().$method(rhs))
-                    .expect(concat!("Attempted to ", $desc, " out of range"))
-            }
-        }
-        bin_op_variations!(
-            [const MIN: Inner, const MAX: Inner]
-            Bounded<MIN, MAX>, u32, $op::$method/$op_assign::$method_assign
-        );
-    };
+#[cfg(target_pointer_width = "32")]
+define_bounded_integers! {
+    BoundedUsize(usize, Into(usize), wide(u64),),
+    BoundedIsize(isize, Into(isize), wide(i64),),
 }
-
-#[cfg(test)]
-macro_rules! test_arithmetic {
-    (ops($($op:tt $op_assign:tt)*) infallibles($($infallible:ident)*) fallibles($($fallible:ident)*)) => {
-        $( #[allow(const_item_mutation)] {
-            let _: Bounded = Bounded::MIN $op 0;
-            let _: Bounded = &Bounded::MIN $op 0;
-            let _: Bounded = Bounded::MIN $op &0;
-            let _: Bounded = &Bounded::MIN $op &0;
-            let _: Inner = 0 $op Bounded::MIN;
-            let _: Inner = 0 $op &Bounded::MIN;
-            let _: Inner = &0 $op Bounded::MIN;
-            let _: Inner = &0 $op &Bounded::MIN;
-            let _: Bounded = Bounded::MIN $op Bounded::MIN;
-            let _: Bounded = &Bounded::MIN $op Bounded::MIN;
-            let _: Bounded = Bounded::MIN $op &Bounded::MIN;
-            let _: Bounded = &Bounded::MIN $op &Bounded::MIN;
-            *&mut Bounded::MIN $op_assign 0;
-            *&mut Bounded::MIN $op_assign &0;
-            *&mut Bounded::MIN $op_assign Bounded::MIN;
-            *&mut Bounded::MIN $op_assign &Bounded::MIN;
-            *&mut 0 $op_assign Bounded::MIN;
-            *&mut 0 $op_assign &Bounded::MIN;
-        } )*
-        $(let _: Bounded = Bounded::MIN.$infallible(0);)*
-        $(let _: Option<Bounded> = Bounded::MIN.$fallible(0);)*
-        let _: Option<Bounded> = Bounded::MIN.checked_neg();
-    };
-    (signed $($tt:tt)*) => {
-        test_arithmetic!($($tt)*);
-
-        let _: Bounded = Bounded::MIN.abs();
-        let _: Option<Bounded> = Bounded::MIN.checked_abs();
-
-        let _: Bounded = -Bounded::MIN;
-        let _: Bounded = -&Bounded::MIN;
-        let _: Bounded = Bounded::MIN.saturating_neg();
-    };
-}
-
-macro_rules! impl_fmt_traits {
-    ($($trait:ident),*) => { $(
-        impl<const MIN: Inner, const MAX: Inner> fmt::$trait for Bounded<MIN, MAX> {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                fmt::$trait::fmt(&self.get(), f)
-            }
-        }
-    )* }
+#[cfg(target_pointer_width = "64")]
+define_bounded_integers! {
+    BoundedUsize(usize, Into(usize), wide(u128),),
+    BoundedIsize(isize, Into(isize), wide(i128),),
 }
 
 macro_rules! define_bounded_integers {
@@ -173,6 +45,8 @@ macro_rules! define_bounded_integers {
 
         use crate::parse::{ParseError, FromStrRadix};
         use crate::{PrimInt, prim_int, prim_int::Sealed as _};
+
+        use super::*;
 
         type Inner = core::primitive::$inner;
         type Unsigned = <Inner as prim_int::Sealed>::Unsigned;
@@ -1276,7 +1150,7 @@ macro_rules! define_bounded_integers {
 
         #[cfg(test)]
         mod tests {
-            use super::Inner;
+            use super::{Inner, test_arithmetic};
 
             #[cfg(feature = "std")]
             use std::format;
@@ -1579,35 +1453,170 @@ macro_rules! define_bounded_integers {
         }
     } pub use self::$inner::Bounded as $name; )* }
 }
+use define_bounded_integers;
 
-define_bounded_integers! {
-    BoundedU8(u8, Into(u8 u16 u32 u64 u128 usize i16 i32 i64 i128 isize), wide(u16),),
-    BoundedU16(u16, Into(u16 u32 u64 u128 usize i32 i64 i128), wide(u32),),
-    BoundedU32(u32, Into(u32 u64 u128 i64 i128), wide(u64),),
-    BoundedU64(u64, Into(u64 u128 i128), wide(u128),),
-    BoundedU128(u128, Into(u128),),
-    BoundedI8(i8, signed, Into(i8 i16 i32 i64 i128 isize), wide(i16),),
-    BoundedI16(i16, signed, Into(i16 i32 i64 i128 isize), wide(i32),),
-    BoundedI32(i32, signed, Into(i32 i64 i128), wide(i64),),
-    BoundedI64(i64, signed, Into(i64 i128), wide(i128),),
-    BoundedI128(i128, signed, Into(i128),),
-}
+macro_rules! impl_bin_op {
+    ($op:ident::$method:ident/$op_assign:ident::$method_assign:ident, $desc:literal) => {
+        use core::ops::{$op, $op_assign};
 
-#[cfg(target_pointer_width = "16")]
-define_bounded_integers! {
-    BoundedUsize(usize, Into(usize), wide(u32),),
-    BoundedIsize(isize, Into(isize), wide(i32),),
+        impl<const MIN: Inner, const MAX: Inner> $op<Inner> for Bounded<MIN, MAX> {
+            type Output = Self;
+            #[inline]
+            fn $method(self, rhs: Inner) -> Self::Output {
+                Self::new(self.get().$method(rhs))
+                    .expect(concat!("Attempted to ", $desc, " out of range"))
+            }
+        }
+        bin_op_variations!(
+            [const MIN: Inner, const MAX: Inner]
+            Bounded<MIN, MAX>, Inner, $op::$method/$op_assign::$method_assign
+        );
+
+        impl<const MIN: Inner, const MAX: Inner> $op<Bounded<MIN, MAX>> for Inner {
+            type Output = Self;
+            #[inline]
+            fn $method(self, rhs: Bounded<MIN, MAX>) -> Self::Output {
+                self.$method(rhs.get())
+            }
+        }
+        bin_op_variations! {
+            [const MIN: Inner, const MAX: Inner]
+            Inner, Bounded<MIN, MAX>, $op::$method/$op_assign::$method_assign
+        }
+
+        impl<const L_MIN: Inner, const L_MAX: Inner, const R_MIN: Inner, const R_MAX: Inner>
+            $op<Bounded<R_MIN, R_MAX>> for Bounded<L_MIN, L_MAX>
+        {
+            type Output = Self;
+             #[inline]
+            fn $method(self, rhs: Bounded<R_MIN, R_MAX>) -> Self::Output {
+                Self::new(self.get().$method(rhs))
+                    .expect(concat!("Attempted to ", $desc, " out of range"))
+            }
+        }
+        bin_op_variations! {
+            [const L_MIN: Inner, const L_MAX: Inner, const R_MIN: Inner, const R_MAX: Inner]
+            Bounded<L_MIN, L_MAX>, Bounded<R_MIN, R_MAX>, $op::$method/$op_assign::$method_assign
+        }
+    };
 }
-#[cfg(target_pointer_width = "32")]
-define_bounded_integers! {
-    BoundedUsize(usize, Into(usize), wide(u64),),
-    BoundedIsize(isize, Into(isize), wide(i64),),
+use impl_bin_op;
+
+macro_rules! bin_op_variations {
+    ([$($generics:tt)*] $lhs:ty, $rhs:ty, $op:ident::$method:ident/$op_assign:ident::$method_assign:ident) => {
+        impl<$($generics)*> $op<$rhs> for &$lhs {
+            type Output = $lhs;
+            #[inline]
+            fn $method(self, rhs: $rhs) -> Self::Output {
+                <$lhs as $op<$rhs>>::$method(*self, rhs)
+            }
+        }
+        impl<$($generics)*> $op<&$rhs> for $lhs {
+            type Output = $lhs;
+            #[inline]
+            fn $method(self, rhs: &$rhs) -> Self::Output {
+                <$lhs as $op<$rhs>>::$method(self, *rhs)
+            }
+        }
+        impl<$($generics)*> $op<&$rhs> for &$lhs {
+            type Output = $lhs;
+            #[inline]
+            fn $method(self, rhs: &$rhs) -> Self::Output {
+                <$lhs as $op<$rhs>>::$method(*self, *rhs)
+            }
+        }
+
+        impl<$($generics)*> $op_assign<$rhs> for $lhs {
+            #[inline]
+            fn $method_assign(&mut self, rhs: $rhs) {
+                *self = <Self as $op<$rhs>>::$method(*self, rhs);
+            }
+        }
+        impl<$($generics)*> $op_assign<&$rhs> for $lhs {
+            #[inline]
+            fn $method_assign(&mut self, rhs: &$rhs) {
+                *self = <Self as $op<$rhs>>::$method(*self, *rhs);
+            }
+        }
+    }
 }
-#[cfg(target_pointer_width = "64")]
-define_bounded_integers! {
-    BoundedUsize(usize, Into(usize), wide(u128),),
-    BoundedIsize(isize, Into(isize), wide(i128),),
+use bin_op_variations;
+
+macro_rules! impl_shift_bin_op {
+    (u32, $op:ident::$method:ident/$op_assign:ident::$method_assign:ident, $desc:literal) => {
+        impl_bin_op!($op::$method/$op_assign::$method_assign, $desc);
+    };
+    ($inner:ident, $op:ident::$method:ident/$op_assign:ident::$method_assign:ident, $desc:literal) => {
+        impl_bin_op!($op::$method/$op_assign::$method_assign, $desc);
+
+        // Implementation used by checked shift operations
+        impl<const MIN: Inner, const MAX: Inner> $op<u32> for Bounded<MIN, MAX> {
+            type Output = Self;
+            #[inline]
+            fn $method(self, rhs: u32) -> Self::Output {
+                Self::new(self.get().$method(rhs))
+                    .expect(concat!("Attempted to ", $desc, " out of range"))
+            }
+        }
+        bin_op_variations!(
+            [const MIN: Inner, const MAX: Inner]
+            Bounded<MIN, MAX>, u32, $op::$method/$op_assign::$method_assign
+        );
+    };
 }
+use impl_shift_bin_op;
+
+macro_rules! impl_fmt_traits {
+    ($($trait:ident),*) => { $(
+        impl<const MIN: Inner, const MAX: Inner> fmt::$trait for Bounded<MIN, MAX> {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                fmt::$trait::fmt(&self.get(), f)
+            }
+        }
+    )* }
+}
+use impl_fmt_traits;
+
+#[cfg(test)]
+macro_rules! test_arithmetic {
+    (ops($($op:tt $op_assign:tt)*) infallibles($($infallible:ident)*) fallibles($($fallible:ident)*)) => {
+        $( #[allow(const_item_mutation)] {
+            let _: Bounded = Bounded::MIN $op 0;
+            let _: Bounded = &Bounded::MIN $op 0;
+            let _: Bounded = Bounded::MIN $op &0;
+            let _: Bounded = &Bounded::MIN $op &0;
+            let _: Inner = 0 $op Bounded::MIN;
+            let _: Inner = 0 $op &Bounded::MIN;
+            let _: Inner = &0 $op Bounded::MIN;
+            let _: Inner = &0 $op &Bounded::MIN;
+            let _: Bounded = Bounded::MIN $op Bounded::MIN;
+            let _: Bounded = &Bounded::MIN $op Bounded::MIN;
+            let _: Bounded = Bounded::MIN $op &Bounded::MIN;
+            let _: Bounded = &Bounded::MIN $op &Bounded::MIN;
+            *&mut Bounded::MIN $op_assign 0;
+            *&mut Bounded::MIN $op_assign &0;
+            *&mut Bounded::MIN $op_assign Bounded::MIN;
+            *&mut Bounded::MIN $op_assign &Bounded::MIN;
+            *&mut 0 $op_assign Bounded::MIN;
+            *&mut 0 $op_assign &Bounded::MIN;
+        } )*
+        $(let _: Bounded = Bounded::MIN.$infallible(0);)*
+        $(let _: Option<Bounded> = Bounded::MIN.$fallible(0);)*
+        let _: Option<Bounded> = Bounded::MIN.checked_neg();
+    };
+    (signed $($tt:tt)*) => {
+        test_arithmetic!($($tt)*);
+
+        let _: Bounded = Bounded::MIN.abs();
+        let _: Option<Bounded> = Bounded::MIN.checked_abs();
+
+        let _: Bounded = -Bounded::MIN;
+        let _: Bounded = -&Bounded::MIN;
+        let _: Bounded = Bounded::MIN.saturating_neg();
+    };
+}
+#[cfg(test)]
+use test_arithmetic;
 
 mod indexing;
 
