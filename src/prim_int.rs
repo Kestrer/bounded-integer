@@ -35,7 +35,9 @@ macro_rules! gen {
             use core::num::NonZero;
 
             pub(crate) type Unsigned = $unsigned;
+            #[allow(unused)] // only needed for non-u8
             pub(crate) type Signed = $signed;
+            #[allow(unused)] // only needed for non-u8
             pub(crate) use super::$signed as signed;
 
             pub(crate) const fn checked_add_unsigned(lhs: Unsigned, rhs: Unsigned) -> Option<Unsigned> {
@@ -52,7 +54,9 @@ macro_rules! gen {
             use core::num::NonZero;
 
             pub(crate) type Unsigned = $unsigned;
+            #[allow(unused)] // only needed for non-u8
             pub(crate) type Signed = $signed;
+            #[allow(unused)] // only needed for non-u8
             pub(crate) use super::$signed as signed;
 
             pub(crate) const fn checked_add_unsigned(lhs: Signed, rhs: Unsigned) -> Option<Signed> {
