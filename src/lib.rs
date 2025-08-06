@@ -114,6 +114,9 @@ pub use types::*;
 mod parse;
 pub use parse::{ParseError, ParseErrorKind};
 
+mod prim_int;
+pub use prim_int::PrimInt;
+
 #[doc(hidden)]
 #[cfg(feature = "macro")]
 pub mod __private {

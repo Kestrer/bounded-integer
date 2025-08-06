@@ -1,4 +1,4 @@
-//! Indexing operations on [T; N], Vec<T> and VecDeque<T> for BoundedUsize
+//! Indexing operations on `[T; N]`, `Vec<T>` and `VecDeque<T>` for BoundedUsize
 
 use super::BoundedUsize;
 use core::ops::Index;

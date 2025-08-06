@@ -157,17 +157,25 @@ macro_rules! impl_fmt_traits {
 
 macro_rules! define_bounded_integers {
     ($(
-        $name:ident $inner:ident $(signed $([$signed:ident])?)? -> $($into:ident)*,
+        $name:ident(
+            $inner:ident,
+            $(signed $([$signed:ident])?,)?
+            Into($($into:ident)*),
+            $(wide($wide:ident $([$has_wide:ident])?),)?
+        ),
     )*) => { $( mod $inner {
         use core::borrow::Borrow;
         use core::cmp;
         use core::fmt;
         use core::iter;
+        use core::num::NonZero;
         use core::str::FromStr;
 
         use crate::parse::{ParseError, FromStrRadix};
+        use crate::{PrimInt, prim_int, prim_int::Sealed as _};
 
         type Inner = core::primitive::$inner;
+        type Unsigned = <Inner as prim_int::Sealed>::Unsigned;
 
         #[doc = "An"]
         #[doc = concat!("[`", stringify!($inner), "`]")]
@@ -185,9 +193,9 @@ macro_rules! define_bounded_integers {
             pub const MAX_VALUE: Inner = MAX;
 
             /// The smallest value of the bounded integer.
-            pub const MIN: Self = Self(MIN);
+            pub const MIN: Self = { assert!(MIN < MAX); Self(MIN) };
             /// The largest value of the bounded integer.
-            pub const MAX: Self = Self(MAX);
+            pub const MAX: Self = { assert!(MIN < MAX); Self(MAX) };
 
             /// Creates a bounded integer without checking the value.
             ///
@@ -287,6 +295,90 @@ macro_rules! define_bounded_integers {
                 }
             }
 
+            /// Get offsets `(range, left, right)` used for calculating wrapping arithmetic.
+            ///
+            /// `range` is equal to `MAX − MIN + 1`. If the range spans the whole type, this
+            /// function returns `None`.
+            ///
+            /// `left` and `right` are the smallest nonnegative values satisfying
+            /// `left ≡ −right ≡ MIN [MOD range]`.
+            const fn wrapping_offsets() -> Option<(NonZero<Unsigned>, Unsigned, Unsigned)> {
+                const { assert!(MIN < MAX) };
+                let range_sub_one = MAX.abs_diff(MIN);
+                let Some(range) = range_sub_one.checked_add(1) else { return None };
+                let range = NonZero::new(range).unwrap();
+
+                let left = prim_int::$inner::rem_euclid_unsigned(MIN, range);
+
+                let right = match left.checked_sub(1) {
+                    None => 0,
+                    Some(left_sub_one) => range_sub_one - left_sub_one,
+                };
+
+                Some((range, left, right))
+            }
+
+            /// Creates a bounded integer by wrapping using modular arithmetic.
+            ///
+            /// For `n` in range, this is an identity function, and it wraps for `n` out of range.
+            ///
+            /// The type parameter `T` must be any integer type that is wider than this one.
+            #[must_use]
+            #[inline]
+            pub fn new_wrapping<T: PrimInt + From<Inner>>(n: T) -> Self
+            where
+                T::Unsigned: From<Unsigned>,
+            {
+                let Some((range, left, right)) = Self::wrapping_offsets() else {
+                    // In the case where the range spans this entire type, truncating is equivalent
+                    // to taking modulo.
+                    return Self(n.truncate());
+                };
+
+                // At least one of `n − left` and `n + right` fits in a `T`. We calculate this
+                // value.
+                let shifted = n
+                    .checked_add_unsigned(right.into())
+                    .or_else(|| n.checked_sub_unsigned(left.into()))
+                    .unwrap();
+
+                let range_t = T::Unsigned::nonzero_from::<Unsigned>(range);
+
+                // Calculate `shifted mod range`. Since `range` fits in an `Unsigned`, we know the
+                // result will too.
+                let rem: Unsigned = shifted.rem_euclid_unsigned(range_t).truncate();
+
+                Self(MIN.checked_add_unsigned(rem).unwrap())
+            }
+
+            // Same algorithm as in `Self::new_wrapping`, but `const fn`.
+            $(
+            const fn new_wrapping_wide(n: $wide) -> Self {
+                let Some((range, left, right)) = Self::wrapping_offsets() else {
+                    return Self(n as _);
+                };
+                let shifted = match prim_int::$wide::checked_add_unsigned(n, right as _) {
+                    Some(s) => s,
+                    None => prim_int::$wide::checked_sub_unsigned(n, left as _).unwrap(),
+                };
+                let range_t = NonZero::new(range.get() as _).unwrap();
+                let rem = prim_int::$wide::rem_euclid_unsigned(shifted, range_t) as _;
+                Self(prim_int::$inner::checked_add_unsigned(MIN, rem).unwrap())
+            }
+            const fn new_wrapping_wide_signed(n: prim_int::$wide::Signed) -> Self {
+                let Some((range, left, right)) = Self::wrapping_offsets() else {
+                    return Self(n as _);
+                };
+                let shifted = match prim_int::$wide::signed::checked_add_unsigned(n, right as _) {
+                    Some(s) => s,
+                    None => prim_int::$wide::signed::checked_sub_unsigned(n, left as _).unwrap(),
+                };
+                let range_t = NonZero::new(range.get() as _).unwrap();
+                let rem = prim_int::$wide::signed::rem_euclid_unsigned(shifted, range_t) as _;
+                Self(prim_int::$inner::checked_add_unsigned(MIN, rem).unwrap())
+            }
+            )?
+
             /// Converts a string slice in a given base to the bounded integer.
             ///
             /// # Panics
@@ -379,6 +471,13 @@ macro_rules! define_bounded_integers {
                 Self::new_saturating(self.get().saturating_add(rhs))
             }
 
+            $(/// Wrapping (modular) integer addition.
+            #[must_use]
+            #[inline]
+            pub const fn wrapping_add(self, rhs: Inner) -> Self {
+                Self::new_wrapping_wide((self.get() as $wide) + (rhs as $wide))
+            })?
+
             /// Checked integer subtraction.
             #[must_use]
             #[inline]
@@ -395,6 +494,15 @@ macro_rules! define_bounded_integers {
             pub const fn saturating_sub(self, rhs: Inner) -> Self {
                 Self::new_saturating(self.get().saturating_sub(rhs))
             }
+
+            $(/// Wrapping (modular) integer subtraction.
+            #[must_use]
+            #[inline]
+            pub const fn wrapping_sub(self, rhs: Inner) -> Self {
+                Self::new_wrapping_wide_signed(
+                    (self.get() as prim_int::$wide::Signed) - (rhs as prim_int::$wide::Signed)
+                )
+            })?
 
             /// Checked integer multiplication.
             #[must_use]
@@ -413,6 +521,13 @@ macro_rules! define_bounded_integers {
                 Self::new_saturating(self.get().saturating_mul(rhs))
             }
 
+            $(/// Wrapping (modular) integer multiplication.
+            #[must_use]
+            #[inline]
+            pub const fn wrapping_mul(self, rhs: Inner) -> Self {
+                Self::new_wrapping_wide((self.get() as $wide) * (rhs as $wide))
+            })?
+
             /// Checked integer division.
             #[must_use]
             #[inline]
@@ -422,6 +537,14 @@ macro_rules! define_bounded_integers {
                     None => None,
                 }
             }
+
+            $(/// Wrapping (modular) integer division.
+            #[must_use]
+            #[inline]
+            pub const fn wrapping_div(self, rhs: Inner) -> Self {
+                // We need to widen for the case of `$inner::MIN / −1`.
+                Self::new_wrapping_wide((self.get() as $wide) / (rhs as $wide))
+            })?
 
             /// Checked Euclidean division.
             #[must_use]
@@ -433,6 +556,14 @@ macro_rules! define_bounded_integers {
                 }
             }
 
+            $(/// Wrapping (modular) Euclidean division.
+            #[must_use]
+            #[inline]
+            pub const fn wrapping_div_euclid(self, rhs: Inner) -> Self {
+                // We need to widen for the case of `$inner::MIN / −1`.
+                Self::new_wrapping_wide((self.get() as $wide).div_euclid(rhs as $wide))
+            })?
+
             /// Checked integer remainder.
             #[must_use]
             #[inline]
@@ -442,6 +573,14 @@ macro_rules! define_bounded_integers {
                     None => None,
                 }
             }
+
+            $(/// Wrapping (modular) integer remainder.
+            #[must_use]
+            #[inline]
+            pub const fn wrapping_rem(self, rhs: Inner) -> Self {
+                // We need to widen for the case of `$inner::MIN % −1`.
+                Self::new_wrapping_wide((self.get() as $wide) % (rhs as $wide))
+            })?
 
             /// Checked Euclidean remainder.
             #[must_use]
@@ -453,6 +592,14 @@ macro_rules! define_bounded_integers {
                 }
             }
 
+            $(/// Wrapping (modular) Euclidean remainder.
+            #[must_use]
+            #[inline]
+            pub const fn wrapping_rem_euclid(self, rhs: Inner) -> Self {
+                // We need to widen for the case of `$inner::MIN % −1`.
+                Self::new_wrapping_wide((self.get() as $wide).rem_euclid(rhs as $wide))
+            })?
+
             /// Checked negation.
             #[must_use]
             #[inline]
@@ -463,31 +610,50 @@ macro_rules! define_bounded_integers {
                 }
             }
 
-            $($(if $signed)?
-                /// Saturating negation.
-                #[must_use]
-                #[inline]
-                pub const fn saturating_neg(self) -> Self {
-                    Self::new_saturating(self.get().saturating_neg())
-                }
+            /// Saturating negation.
+            #[must_use]
+            #[inline]
+            #[cfg(any($($(if $signed)? true)?))]
+            pub const fn saturating_neg(self) -> Self {
+                Self::new_saturating(self.get().saturating_neg())
+            }
 
-                /// Checked absolute value.
-                #[must_use]
-                #[inline]
-                pub const fn checked_abs(self) -> Option<Self> {
-                    match self.get().checked_abs() {
-                        Some(val) => Self::new(val),
-                        None => None,
-                    }
-                }
+            /// Wrapping (modular) negation.
+            #[must_use]
+            #[inline]
+            #[cfg(all(any($($(if $signed)? true)?), any($($(if $has_wide)? true)?)))]
+            pub const fn wrapping_neg(self) -> Self {
+                #[expect(unused_parens)]
+                Self::new_wrapping_wide(-(self.get() as ($($wide)?)))
+            }
 
-                /// Saturating absolute value.
-                #[must_use]
-                #[inline]
-                pub const fn saturating_abs(self) -> Self {
-                    Self::new_saturating(self.get().saturating_abs())
+            /// Checked absolute value.
+            #[must_use]
+            #[inline]
+            #[cfg(any($($(if $signed)? true)?))]
+            pub const fn checked_abs(self) -> Option<Self> {
+                match self.get().checked_abs() {
+                    Some(val) => Self::new(val),
+                    None => None,
                 }
-            )*
+            }
+
+            /// Saturating absolute value.
+            #[must_use]
+            #[inline]
+            #[cfg(any($($(if $signed)? true)?))]
+            pub const fn saturating_abs(self) -> Self {
+                Self::new_saturating(self.get().saturating_abs())
+            }
+
+            /// Wrapping (modular) absolute value.
+            #[must_use]
+            #[inline]
+            #[cfg(all(any($($(if $signed)? true)?), any($($(if $has_wide)? true)?)))]
+            pub const fn wrapping_abs(self) -> Self {
+                #[expect(unused_parens)]
+                Self::new_wrapping_wide((self.get() as ($($wide)?)).abs())
+            }
 
             /// Checked exponentiation.
             #[must_use]
@@ -505,6 +671,34 @@ macro_rules! define_bounded_integers {
             pub const fn saturating_pow(self, rhs: u32) -> Self {
                 Self::new_saturating(self.get().saturating_pow(rhs))
             }
+
+            $(/// Wrapping (modular) exponentiation.
+            #[must_use]
+            #[inline]
+            pub const fn wrapping_pow(self, mut exp: u32) -> Self {
+                let Some((range, _, _)) = Self::wrapping_offsets() else {
+                    return Self(self.get().wrapping_pow(exp));
+                };
+
+                // Exponentiation by squaring (same algorithm as used in std), but taking modulo
+                // each time. We keep our values in the range [0, MAX − MIN].
+                if exp == 0 {
+                    return Self::new_wrapping_wide(1);
+                }
+                let mut base = self.get() as $wide;
+                let mut acc: $wide = 1;
+                let range = range.get() as $wide;
+                loop {
+                    if (exp & 1) == 1 {
+                        acc = (acc * base).rem_euclid(range);
+                        if exp == 1 {
+                            return Self::new_wrapping_wide(acc);
+                        }
+                    }
+                    exp /= 2;
+                    base = (base * base).rem_euclid(range);
+                }
+            })?
 
             /// Checked shift left.
             #[must_use]
@@ -1113,6 +1307,35 @@ macro_rules! define_bounded_integers {
             }
 
             #[test]
+            fn wrapping() {
+                type Bounded = super::Bounded<3, 10>;
+                assert_eq!(Bounded::new_wrapping::<Inner>(3).get(), 3);
+                assert_eq!(Bounded::new_wrapping::<Inner>(10).get(), 10);
+                assert_eq!(Bounded::new_wrapping::<Inner>(11).get(), 3);
+                assert_eq!(Bounded::new_wrapping::<Inner>(0).get(), 8);
+                assert_eq!(Bounded::new_wrapping::<Inner>(127).get(), 7);
+            }
+
+            #[test]
+            fn wrapping_full() {
+                type Bounded = super::Bounded<{ Inner::MIN }, { Inner::MAX }>;
+                assert_eq!(Bounded::new_wrapping::<Inner>(Inner::MIN), Inner::MIN);
+                assert_eq!(Bounded::new_wrapping::<Inner>(Inner::MAX), Inner::MAX);
+                assert_eq!(Bounded::new_wrapping::<Inner>(0), 0);
+                assert_eq!(Bounded::new_wrapping::<Inner>(37), 37);
+            }
+
+            #[test]
+            #[cfg(any($($(if $signed)? true)?))]
+            fn wrapping_signed() {
+                type Bounded = super::Bounded<-5, 2>;
+                assert_eq!(Bounded::new_wrapping::<Inner>(0).get(), 0);
+                assert_eq!(Bounded::new_wrapping::<Inner>(-5).get(), -5);
+                assert_eq!(Bounded::new_wrapping::<Inner>(2).get(), 2);
+                assert_eq!(Bounded::new_wrapping::<Inner>(-128).get(), 0);
+            }
+
+            #[test]
             fn arithmetic() {
                 if false {
                     type Bounded = super::Bounded<0, 15>;
@@ -1127,6 +1350,16 @@ macro_rules! define_bounded_integers {
                             saturating_sub
                             saturating_mul
                             saturating_pow
+                            $($(if $has_wide)?
+                            wrapping_add
+                            wrapping_sub
+                            wrapping_mul
+                            wrapping_div
+                            wrapping_div_euclid
+                            wrapping_rem
+                            wrapping_rem_euclid
+                            wrapping_pow
+                            )?
                         )
                         fallibles(
                             checked_add
@@ -1348,18 +1581,91 @@ macro_rules! define_bounded_integers {
 }
 
 define_bounded_integers! {
-    BoundedU8 u8 -> u8 u16 u32 u64 u128 usize i16 i32 i64 i128 isize,
-    BoundedU16 u16 -> u16 u32 u64 u128 usize i32 i64 i128,
-    BoundedU32 u32 -> u32 u64 u128 i64 i128,
-    BoundedU64 u64 -> u64 u128 i128,
-    BoundedU128 u128 -> u128,
-    BoundedUsize usize -> usize,
-    BoundedI8 i8 signed -> i8 i16 i32 i64 i128 isize,
-    BoundedI16 i16 signed -> i16 i32 i64 i128 isize,
-    BoundedI32 i32 signed -> i32 i64 i128,
-    BoundedI64 i64 signed -> i64 i128,
-    BoundedI128 i128 signed -> i128,
-    BoundedIsize isize signed -> isize,
+    BoundedU8(u8, Into(u8 u16 u32 u64 u128 usize i16 i32 i64 i128 isize), wide(u16),),
+    BoundedU16(u16, Into(u16 u32 u64 u128 usize i32 i64 i128), wide(u32),),
+    BoundedU32(u32, Into(u32 u64 u128 i64 i128), wide(u64),),
+    BoundedU64(u64, Into(u64 u128 i128), wide(u128),),
+    BoundedU128(u128, Into(u128),),
+    BoundedI8(i8, signed, Into(i8 i16 i32 i64 i128 isize), wide(i16),),
+    BoundedI16(i16, signed, Into(i16 i32 i64 i128 isize), wide(i32),),
+    BoundedI32(i32, signed, Into(i32 i64 i128), wide(i64),),
+    BoundedI64(i64, signed, Into(i64 i128), wide(i128),),
+    BoundedI128(i128, signed, Into(i128),),
+}
+
+#[cfg(target_pointer_width = "16")]
+define_bounded_integers! {
+    BoundedUsize(usize, Into(usize), wide(u32),),
+    BoundedIsize(isize, Into(isize), wide(i32),),
+}
+#[cfg(target_pointer_width = "32")]
+define_bounded_integers! {
+    BoundedUsize(usize, Into(usize), wide(u64),),
+    BoundedIsize(isize, Into(isize), wide(i64),),
+}
+#[cfg(target_pointer_width = "64")]
+define_bounded_integers! {
+    BoundedUsize(usize, Into(usize), wide(u128),),
+    BoundedIsize(isize, Into(isize), wide(i128),),
 }
 
 mod indexing;
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn wrapping_unwiden() {
+        type Bounded = super::BoundedU8<2, 20>;
+        assert_eq!(Bounded::new_wrapping(12_u16), 12);
+        assert_eq!(Bounded::new_wrapping(21_u16), 2);
+        assert_eq!(Bounded::new_wrapping(12_i16), 12);
+        assert_eq!(Bounded::new_wrapping(21_i16), 2);
+
+        assert_eq!(Bounded::new_wrapping(0_u16), 19);
+        assert_eq!(Bounded::new_wrapping(65535_u16), 4);
+        assert_eq!(Bounded::new_wrapping(65533_u16), 2);
+        assert_eq!(Bounded::new_wrapping(65532_u16), 20);
+
+        assert_eq!(Bounded::new_wrapping(-32768_i16), 7);
+        assert_eq!(Bounded::new_wrapping(-32755_i16), 20);
+        assert_eq!(Bounded::new_wrapping(-32754_i16), 2);
+        assert_eq!(Bounded::new_wrapping(32767_i16), 11);
+    }
+
+    #[test]
+    fn wrapping_truncation() {
+        type Bounded = super::BoundedI8<-128, 127>;
+        assert_eq!(Bounded::new_wrapping(128_i16), -128);
+        assert_eq!(Bounded::new_wrapping(-200_i16), 56);
+        assert_eq!(Bounded::new(25).unwrap().wrapping_pow(20), 97);
+    }
+
+    #[test]
+    fn wrapping_arith() {
+        type Bounded = super::BoundedI8<-5, 20>;
+        assert_eq!(Bounded::new(0).unwrap().wrapping_add(0), 0);
+        assert_eq!(Bounded::new(-5).unwrap().wrapping_add(-128), -3);
+        assert_eq!(Bounded::new(-5).unwrap().wrapping_sub(127), -2);
+        assert_eq!(Bounded::new(20).unwrap().wrapping_add(127), 17);
+        assert_eq!(Bounded::new(15).unwrap().wrapping_mul(17), -5);
+        assert_eq!(Bounded::new(-5).unwrap().wrapping_div(2), -2);
+        assert_eq!(Bounded::new(-5).unwrap().wrapping_rem(2), -1);
+        assert_eq!(Bounded::new(-5).unwrap().wrapping_div_euclid(2), -3);
+        assert_eq!(Bounded::new(-5).unwrap().wrapping_rem_euclid(2), 1);
+        assert_eq!(Bounded::new(-5).unwrap().wrapping_neg(), 5);
+        assert_eq!(Bounded::new(6).unwrap().wrapping_neg(), 20);
+        assert_eq!(Bounded::new(-5).unwrap().wrapping_abs(), 5);
+        assert_eq!(Bounded::new(6).unwrap().wrapping_abs(), 6);
+        assert_eq!(
+            <super::BoundedI8<-20, 5>>::new(-6).unwrap().wrapping_abs(),
+            -20
+        );
+        assert_eq!(Bounded::new(5).unwrap().wrapping_pow(607), -5);
+    }
+
+    #[test]
+    fn wrapping_div() {
+        type Bounded = super::BoundedI32<{ i32::MIN }, -1>;
+        assert_eq!(Bounded::new(i32::MIN).unwrap().wrapping_div(-1), i32::MIN);
+    }
+}
