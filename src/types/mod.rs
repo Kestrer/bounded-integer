@@ -197,8 +197,7 @@ macro_rules! define_bounded_integers {
             /// [`MIN_VALUE`](Self::MIN_VALUE) or greater than [`MAX_VALUE`](Self::MAX_VALUE).
             #[must_use]
             pub const unsafe fn new_unchecked(n: Inner) -> Self {
-                // Doesn't work in `const fn`:
-                // debug_assert!(Self::in_range(n));
+                debug_assert!(Self::in_range(n));
                 Self(n)
             }
 
@@ -210,7 +209,7 @@ macro_rules! define_bounded_integers {
             /// The value must not be outside the valid range of values; it must not be less than
             /// [`MIN_VALUE`](Self::MIN_VALUE) or greater than [`MAX_VALUE`](Self::MAX_VALUE).
             #[must_use]
-            pub unsafe fn new_ref_unchecked(n: &Inner) -> &Self {
+            pub const unsafe fn new_ref_unchecked(n: &Inner) -> &Self {
                 debug_assert!(Self::in_range(*n));
                 &*<*const _>::cast(n)
             }
@@ -223,7 +222,7 @@ macro_rules! define_bounded_integers {
             /// The value must not be outside the valid range of values; it must not be less than
             /// [`MIN_VALUE`](Self::MIN_VALUE) or greater than [`MAX_VALUE`](Self::MAX_VALUE).
             #[must_use]
-            pub unsafe fn new_mut_unchecked(n: &mut Inner) -> &mut Self {
+            pub const unsafe fn new_mut_unchecked(n: &mut Inner) -> &mut Self {
                 debug_assert!(Self::in_range(*n));
                 &mut *<*mut _>::cast(n)
             }
@@ -251,11 +250,13 @@ macro_rules! define_bounded_integers {
             /// given value is within the range [[`MIN`](Self::MIN), [`MAX`](Self::MAX)].
             #[must_use]
             #[inline]
-            pub fn new_ref(n: &Inner) -> Option<&Self> {
-                Self::in_range(*n).then(|| {
+            pub const fn new_ref(n: &Inner) -> Option<&Self> {
+                if Self::in_range(*n) {
                     // SAFETY: We just asserted that the value is in range.
-                    unsafe { Self::new_ref_unchecked(n) }
-                })
+                    Some(unsafe { Self::new_ref_unchecked(n) })
+                } else {
+                    None
+                }
             }
 
             /// Creates a mutable reference to a bounded integer from a mutable reference to a
@@ -263,11 +264,13 @@ macro_rules! define_bounded_integers {
             /// [[`MIN`](Self::MIN), [`MAX`](Self::MAX)].
             #[must_use]
             #[inline]
-            pub fn new_mut(n: &mut Inner) -> Option<&mut Self> {
-                Self::in_range(*n).then(move || {
+            pub const fn new_mut(n: &mut Inner) -> Option<&mut Self> {
+                if Self::in_range(*n) {
                     // SAFETY: We just asserted that the value is in range.
-                    unsafe { Self::new_mut_unchecked(n) }
-                })
+                    Some(unsafe { Self::new_mut_unchecked(n) })
+                } else {
+                    None
+                }
             }
 
             /// Creates a bounded integer by setting the value to [`MIN`](Self::MIN) or
@@ -321,7 +324,7 @@ macro_rules! define_bounded_integers {
             /// This value must never be set to a value beyond the range of the bounded integer.
             #[must_use]
             #[inline]
-            pub unsafe fn get_mut(&mut self) -> &mut Inner {
+            pub const unsafe fn get_mut(&mut self) -> &mut Inner {
                 &mut *<*mut _>::cast(self)
             }
 
@@ -329,7 +332,7 @@ macro_rules! define_bounded_integers {
                 /// Computes the absolute value of `self`, panicking if it is out of range.
                 #[must_use]
                 #[inline]
-                pub fn abs(self) -> Self {
+                pub const fn abs(self) -> Self {
                     Self::new(self.get().abs()).expect("Absolute value out of range")
                 }
             )*
@@ -338,7 +341,7 @@ macro_rules! define_bounded_integers {
             /// is out of range.
             #[must_use]
             #[inline]
-            pub fn pow(self, exp: u32) -> Self {
+            pub const fn pow(self, exp: u32) -> Self {
                 Self::new(self.get().pow(exp)).expect("Value raised to power out of range")
             }
 
@@ -346,7 +349,7 @@ macro_rules! define_bounded_integers {
             /// is 0 or the result is out of range.
             #[must_use]
             #[inline]
-            pub fn div_euclid(self, rhs: Inner) -> Self {
+            pub const fn div_euclid(self, rhs: Inner) -> Self {
                 Self::new(self.get().div_euclid(rhs)).expect("Attempted to divide out of range")
             }
 
@@ -354,7 +357,7 @@ macro_rules! define_bounded_integers {
             /// or the result is out of range.
             #[must_use]
             #[inline]
-            pub fn rem_euclid(self, rhs: Inner) -> Self {
+            pub const fn rem_euclid(self, rhs: Inner) -> Self {
                 Self::new(self.get().rem_euclid(rhs))
                     .expect("Attempted to divide with remainder out of range")
             }
