@@ -23,6 +23,7 @@ pub fn bounded_integer(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
     });
     let [
         zerocopy,
+        outer_attr,
         mut attrs,
         vis,
         super_vis,
@@ -240,6 +241,7 @@ pub fn bounded_integer(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
 
     let res = quote!(
         #[allow(non_snake_case)]
+        #outer_attr
         mod #module_name {
             #attrs
             #super_vis #item_kind #name #item

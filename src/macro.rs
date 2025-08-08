@@ -89,10 +89,12 @@
 #[macro_export]
 macro_rules! bounded_integer {
     (
+        $(#![$($outer_attr:tt)*])*
         $(#[$($attr:tt)*])*
         $(pub $(($($vis:tt)*))?)? struct $name:ident($min:expr, $max:expr);
     ) => {
         $crate::__helper! { validate_attrs
+            [$([$($outer_attr)*])*]
             [$([$($attr)*])*]
             [$(pub $(($($vis)*))?)?]
             [-] [struct] [$name] [$min] [$max]
@@ -100,10 +102,12 @@ macro_rules! bounded_integer {
         }
     };
     (
+        $(#![$($outer_attr:tt)*])*
         $(#[$($attr:tt)*])*
         $(pub $(($($vis:tt)*))?)? enum $name:ident($min:expr, $max:expr);
     ) => {
         $crate::__helper! { validate_attrs
+            [$([$($outer_attr)*])*]
             [$([$($attr)*])*]
             [$(pub $(($($vis)*))?)?]
             [-] [enum] [$name] [$min] [$max]
@@ -111,12 +115,14 @@ macro_rules! bounded_integer {
         }
     };
     (
+        $(#![$($outer_attr:tt)*])*
         $(#[$($attr:tt)*])*
         $(pub $(($($vis:tt)*))?)? enum $name:ident {
             $($(#[$($var_attr:tt)*])* $variant:ident $(= $val:literal)?),* $(,)?
         }
     ) => {
         $crate::__helper! { validate_attrs
+            [$([$($outer_attr)*])*]
             [$([$($attr)*])*]
             [$(pub $(($($vis)*))?)?]
             [+] [enum] [$name] [$([[$(#[$($var_attr)*])*] $variant [$($val)?]])*] []
@@ -144,9 +150,10 @@ macro_rules! bounded_integer {
 #[cfg(feature = "zerocopy")]
 #[doc(hidden)]
 macro_rules! __dispatch_zerocopy {
-    ([$($attr:tt)*] $($t:tt)*) => {
+    ($outer_attr:tt [$($attr:tt)*] $($t:tt)*) => {
         $crate::__helper! { vis
             [+]
+            $outer_attr
             [
                 $($attr)*
                 [derive($crate::__private::zerocopy::IntoBytes)]
@@ -168,8 +175,9 @@ macro_rules! __dispatch_zerocopy {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! __helper {
-    (validate_attrs [$($attr:tt)*] $($t:tt)*) => {
-        $crate::__dispatch_zerocopy! { [$($attr)*] $($t)* }
+    (validate_attrs [$($outer_attr:tt)*] [$($attr:tt)*] $($t:tt)*) => {
+        $crate::__dispatch_zerocopy! { [$(#$outer_attr)*] [$($attr)*] $($t)* }
+        $($crate::__helper! { validate_attr $outer_attr })*
         $($crate::__helper! { validate_attr $attr })*
     };
     (validate_attr [doc = $($_:tt)*]) => {};
@@ -185,20 +193,20 @@ macro_rules! __helper {
     (validate_attr [$($attr:tt)*]) => {
         ::core::compile_error!("for soundness reasons, custom attributes are not allowed");
     };
-    (vis $zerocopy:tt $attr:tt [$(pub($(in)? self))?] $($t:tt)*) => {
-        $crate::__private::proc_macro! { $zerocopy $attr [] [pub(super)] $($t)* }
+    (vis $zerocopy:tt $outer_attr:tt $attr:tt [$(pub($(in)? self))?] $($t:tt)*) => {
+        $crate::__private::proc_macro! { $zerocopy $outer_attr $attr [] [pub(super)] $($t)* }
     };
-    (vis $zerocopy:tt $attr:tt [pub] $($t:tt)*) => {
-        $crate::__private::proc_macro! { $zerocopy $attr [pub] [pub] $($t)* }
+    (vis $zerocopy:tt $outer_attr:tt $attr:tt [pub] $($t:tt)*) => {
+        $crate::__private::proc_macro! { $zerocopy $outer_attr $attr [pub] [pub] $($t)* }
     };
-    (vis $zerocopy:tt $attr:tt [pub($(in)? crate$(::$($path:ident)::+)?)] $($t:tt)*) => {
-        $crate::__private::proc_macro! { $zerocopy $attr [pub(in crate$(::$($path)::+)?)] [pub(in crate$(::$($path)::+)?)] $($t)* }
+    (vis $zerocopy:tt $outer_attr:tt $attr:tt [pub($(in)? crate$(::$($path:ident)::+)?)] $($t:tt)*) => {
+        $crate::__private::proc_macro! { $zerocopy $outer_attr $attr [pub(in crate$(::$($path)::+)?)] [pub(in crate$(::$($path)::+)?)] $($t)* }
     };
-    (vis $zerocopy:tt $attr:tt [pub(super)] $($t:tt)*) => {
-        $crate::__private::proc_macro! { $zerocopy $attr [pub(super)] [pub(in super::super)] $($t)* }
+    (vis $zerocopy:tt $outer_attr:tt $attr:tt [pub(super)] $($t:tt)*) => {
+        $crate::__private::proc_macro! { $zerocopy $outer_attr $attr [pub(super)] [pub(in super::super)] $($t)* }
     };
-    (vis $zerocopy:tt $attr:tt [pub(in $($path:ident)::+)] $($t:tt)*) => {
-        $crate::__private::proc_macro! { $zerocopy $attr [pub(in $($path)::+)] [pub(in super::$($path)::+)] $($t)* }
+    (vis $zerocopy:tt $outer_attr:tt $attr:tt [pub(in $($path:ident)::+)] $($t:tt)*) => {
+        $crate::__private::proc_macro! { $zerocopy $outer_attr $attr [pub(in $($path)::+)] [pub(in super::$($path)::+)] $($t)* }
     };
 }
 
@@ -211,6 +219,12 @@ mod tests {
         #![expect(unused)]
         bounded_integer!(struct Struct(-400, -203););
         bounded_integer!(enum Enum(-500, -483););
+    }
+
+    #[test]
+    fn outer_attrs() {
+        #![expect(unused)]
+        bounded_integer!(#![expect(double_negations)] struct S(--1, 4_i8););
     }
 
     #[test]
