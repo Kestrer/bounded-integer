@@ -101,8 +101,6 @@
 #![cfg_attr(feature = "__doc", feature(doc_auto_cfg))]
 #![no_std]
 
-// TODO: TryFrom and TryInto
-
 #[cfg(feature = "std")]
 extern crate std;
 
