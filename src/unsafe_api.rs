@@ -7,7 +7,8 @@
 /// Takes in a `ty` and a `repr`. `ty` must be a type whose layout is identical to `repr`.
 ///
 /// `min` and `max` are const expressions giving the bounds of the type (inclusive).
-/// If `zeroable` is provided, various traits like [`Default`] will be implemented.
+/// If `zero` is provided, various traits like [`Default`] will be implemented;
+/// if `one` is provided, `num_traits::One` will be implemented.
 ///
 /// # Safety
 ///
@@ -25,7 +26,8 @@
 ///     unsafe repr: u8,
 ///     min: 0,
 ///     max: 37,
-///     zeroable,
+///     zero,
+///     one,
 /// }
 ///
 /// assert_eq!(MyInteger::new(0).unwrap(), 0);
@@ -52,7 +54,8 @@ macro_rules! unsafe_api {
         unsafe repr: $repr:tt,
         min: $min:expr,
         max: $max:expr,
-        $(zeroable $([$($_:tt)* $zeroable:tt])?,)?
+        $(zero $([$($_:tt)* $zero:tt])?,)?
+        $(one $([$($__:tt)* $one:tt])?,)?
     ) => {
         $crate::__unsafe_api_internal! {
             @repr $repr,
@@ -60,7 +63,8 @@ macro_rules! unsafe_api {
             ([$($($generics)*)?] where $($($where)*)?),
             min: $min,
             max: $max,
-            $(zeroable, $($zeroable)?)?
+            $(zero, $($zero)?)?
+            $(one, $($one)?)?
         }
     };
 }
@@ -80,7 +84,8 @@ macro_rules! __unsafe_api_internal {
         $generics_single_token:tt,
         min: $min:expr,
         max: $max:expr,
-        $(zeroable $([$zeroable:tt])?,)?
+        $(zero $([$zero:tt])?,)?
+        $(one $([$one:tt])?,)?
     ) => { const _: () = {
         // The presence of these imports is somewhat unhygienic: it means users cannot name their
         // type any of these things. This can always be changed if the need arises.
@@ -700,12 +705,23 @@ macro_rules! __unsafe_api_internal {
 
         // === Default ===
 
-        #[cfg(not(all($($($zeroable)? false)?)))]
+        #[cfg(not(all($($($zero)? false)?)))]
         #[automatically_derived]
         impl<$($generics)*> Default for $ty where $($where)* {
             fn default() -> Self {
                 const {
-                    Self::new(0).expect("used `zeroable` on a type whose range does not include zero")
+                    Self::new(0).expect("used `zero` on a type whose range does not include zero")
+                }
+            }
+        }
+
+        // Use a function to force post-mono errors even if `num-traits02` is disabled.
+        #[cfg(not(all($($($one)? false)?)))]
+        impl<$($generics)*> $ty where $($where)* {
+            #[allow(unused)]
+            fn one() -> Self {
+                const {
+                    Self::new(1).expect("used `one` on a type whose range does not include one")
                 }
             }
         }
@@ -1013,7 +1029,7 @@ macro_rules! __unsafe_api_internal {
             #[automatically_derived]
             unsafe impl<$($generics)*> bytemuck1::NoUninit for $ty {}
 
-            #[cfg(not(all($($(if $zeroable)? false)?)))]
+            #[cfg(not(all($($(if $zero)? false)?)))]
             #[automatically_derived]
             unsafe impl<$($generics)*> bytemuck1::Zeroable for $ty {}
         }
@@ -1241,7 +1257,24 @@ macro_rules! __unsafe_api_internal {
                 }
             }
 
-            // TODO: implement `Zero`/`One`?
+            #[cfg(not(all($($($zero)? false)?)))]
+            #[automatically_derived]
+            impl<$($generics)*> num_traits02::Zero for $ty {
+                fn zero() -> Self {
+                    Self::default()
+                }
+                fn is_zero(&self) -> bool {
+                    self.get() == 0
+                }
+            }
+
+            #[cfg(not(all($($($one)? false)?)))]
+            #[automatically_derived]
+            impl<$($generics)*> num_traits02::One for $ty {
+                fn one() -> Self {
+                    Self::one()
+                }
+            }
         }
 
         // === Serde ===
@@ -1530,7 +1563,7 @@ mod tests {
             },
             min: -5,
             max: 5,
-            zeroable,
+            zero,
         }
     }
 }

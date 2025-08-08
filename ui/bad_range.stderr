@@ -13,39 +13,39 @@ error[E0080]: evaluation panicked: range minimum should be less than maximum
   = note: this error originates in the macro `$crate::__unsafe_api_internal` which comes from the expansion of the macro `define_bounded_integers` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 note: erroneous constant encountered
- --> ui/bad_range.rs:4:13
+ --> ui/bad_range.rs:3:13
   |
-4 |     let _ = <bounded_integer::BoundedUsize<5, 4>>::MIN;
+3 |     let _ = <bounded_integer::BoundedUsize<5, 4>>::MIN;
   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error[E0080]: evaluation panicked: range minimum should be less than maximum
- --> ui/bad_range.rs:5:5
+ --> ui/bad_range.rs:4:5
   |
-5 |     bounded_integer::bounded_integer!(struct X(5, 4););
+4 |     bounded_integer::bounded_integer!(struct X(5, 4););
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `main::__bounded_integer_private_X::_::<impl main::__bounded_integer_private_X::X>::MIN` failed here
   |
   = note: this error originates in the macro `$crate::__unsafe_api_internal` which comes from the expansion of the macro `bounded_integer::bounded_integer` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 note: erroneous constant encountered
- --> ui/bad_range.rs:5:5
+ --> ui/bad_range.rs:4:5
   |
-5 |     bounded_integer::bounded_integer!(struct X(5, 4););
+4 |     bounded_integer::bounded_integer!(struct X(5, 4););
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |
   = note: this note originates in the macro `$crate::__unsafe_api_internal` which comes from the expansion of the macro `bounded_integer::bounded_integer` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0080]: evaluation panicked: range minimum should be less than maximum
- --> ui/bad_range.rs:5:5
+ --> ui/bad_range.rs:4:5
   |
-5 |     bounded_integer::bounded_integer!(struct X(5, 4););
+4 |     bounded_integer::bounded_integer!(struct X(5, 4););
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ evaluation of `main::__bounded_integer_private_X::_::<impl main::__bounded_integer_private_X::X>::MAX` failed here
   |
   = note: this error originates in the macro `$crate::__unsafe_api_internal` which comes from the expansion of the macro `bounded_integer::bounded_integer` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 note: erroneous constant encountered
- --> ui/bad_range.rs:5:5
+ --> ui/bad_range.rs:4:5
   |
-5 |     bounded_integer::bounded_integer!(struct X(5, 4););
+4 |     bounded_integer::bounded_integer!(struct X(5, 4););
   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |
   = note: this note originates in the macro `$crate::__unsafe_api_internal` which comes from the expansion of the macro `bounded_integer::bounded_integer` (in Nightly builds, run with -Z macro-backtrace for more info)

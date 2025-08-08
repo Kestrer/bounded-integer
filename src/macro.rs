@@ -317,9 +317,13 @@ mod tests {
 
     #[test]
     fn zeroable() {
-        #[cfg(all(feature = "bytemuck1", feature = "zerocopy"))]
-        fn assert_zeroable<T: Default + bytemuck1::Zeroable + zerocopy::FromZeros>() {}
-        #[cfg(not(all(feature = "bytemuck1", feature = "zerocopy")))]
+        #[cfg(all(feature = "bytemuck1", feature = "zerocopy", feature = "num-traits02"))]
+        fn assert_zeroable<T>()
+        where
+            T: Default + bytemuck1::Zeroable + zerocopy::FromZeros + num_traits02::Zero,
+        {
+        }
+        #[cfg(not(all(feature = "bytemuck1", feature = "zerocopy", feature = "num-traits02")))]
         fn assert_zeroable<T: Default>() {}
         #[expect(unused)]
         trait NotZeroable<const N: usize> {}
@@ -328,6 +332,8 @@ mod tests {
         impl<T: bytemuck1::Zeroable> NotZeroable<1> for T {}
         #[cfg(feature = "zerocopy")]
         impl<T: zerocopy::FromZeros> NotZeroable<2> for T {}
+        #[cfg(feature = "num-traits02")]
+        impl<T: num_traits02::Zero> NotZeroable<3> for T {}
         macro_rules! not_zeroable {
             ($t:ty) => {
                 impl NotZeroable<0> for $t {}
@@ -335,6 +341,8 @@ mod tests {
                 impl NotZeroable<1> for $t {}
                 #[cfg(feature = "zerocopy")]
                 impl NotZeroable<2> for $t {}
+                #[cfg(feature = "num-traits02")]
+                impl NotZeroable<3> for $t {}
             };
         }
 
@@ -355,6 +363,14 @@ mod tests {
         bounded_integer!(struct E(-(5), 0_i8););
         not_zeroable!(E);
         assert_ne!(size_of::<Option<E>>(), size_of::<E>());
+    }
+
+    #[test]
+    #[cfg(feature = "num-traits02")]
+    fn one() {
+        fn assert_one<T: num_traits02::One>() {}
+        bounded_integer!(struct A(1, 1););
+        assert_one::<A>();
     }
 
     #[test]

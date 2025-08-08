@@ -27,7 +27,7 @@ note: erroneous constant encountered
    = note: this note originates in the macro `$crate::__unsafe_api_internal` which comes from the expansion of the macro `define_bounded_integers` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 note: the above error was encountered while instantiating `fn bounded_integer::types::_::<impl bounded_integer::BoundedUsize<0, 5>>::const_new::<6>`
- --> ui/const_new.rs:3:13
+ --> ui/const_new.rs:2:13
   |
-3 |     let _ = <bounded_integer::BoundedUsize<0, 5>>::const_new::<6>();
+2 |     let _ = <bounded_integer::BoundedUsize<0, 5>>::const_new::<6>();
   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

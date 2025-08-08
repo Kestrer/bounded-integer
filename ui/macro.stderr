@@ -1,137 +1,137 @@
 error: duplicate `repr` attribute
- --> ui/macro.rs:7:7
+ --> ui/macro.rs:5:7
   |
-7 |     #[repr(u8)]
+5 |     #[repr(u8)]
   |       ^^^^
 
 error: `enum` requires bound to be statically known
-  --> ui/macro.rs:12:25
+  --> ui/macro.rs:10:25
    |
-12 |     enum EnumUnknownMin((0), 0);
+10 |     enum EnumUnknownMin((0), 0);
    |                         ^^^
 
 error: `enum` requires bound to be statically known
-  --> ui/macro.rs:16:28
+  --> ui/macro.rs:14:28
    |
-16 |     enum EnumUnknownMax(0, (0));
+14 |     enum EnumUnknownMax(0, (0));
    |                            ^^^
 
 error: refusing to generate this many `enum` variants
-  --> ui/macro.rs:20:21
+  --> ui/macro.rs:18:21
    |
-20 |     enum EnumTooBig(0, 100_000);
+18 |     enum EnumTooBig(0, 100_000);
    |                     ^
 
 error: too many variants (overflows a u128)
-  --> ui/macro.rs:26:9
+  --> ui/macro.rs:24:9
    |
-26 |         B,
+24 |         B,
    |         ^
 
 error: could not parse variant value
-  --> ui/macro.rs:32:13
+  --> ui/macro.rs:30:13
    |
-32 |         A = "",
+30 |         A = "",
    |             ^^
 
 error: could not parse variant value
-  --> ui/macro.rs:38:13
+  --> ui/macro.rs:36:13
    |
-38 |         A = 0x1_0000_0000_0000_0000_0000_0000_0000_0000,
+36 |         A = 0x1_0000_0000_0000_0000_0000_0000_0000_0000,
    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: enum not contiguous
-  --> ui/macro.rs:45:13
+  --> ui/macro.rs:43:13
    |
-45 |         B = 2,
+43 |         B = 2,
    |             ^
 
 error: range too large for any integer type
-  --> ui/macro.rs:50:32
+  --> ui/macro.rs:48:32
    |
-50 |     struct RangeTooLargeStruct(-0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF, 0);
+48 |     struct RangeTooLargeStruct(-0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF, 0);
    |                                ^
 
 error: range too large for any integer type
-  --> ui/macro.rs:55:13
+  --> ui/macro.rs:53:13
    |
-55 |         A = -0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF,
+53 |         A = -0xFFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF_FFFF,
    |             ^
 
 error: no #[repr] attribute found, and could not infer
-  --> ui/macro.rs:60:30
+  --> ui/macro.rs:58:30
    |
-60 |     struct CouldNotInferRepr((0), 0);
+58 |     struct CouldNotInferRepr((0), 0);
    |                              ^^^
 
 error: for soundness reasons, custom attributes are not allowed
-  --> ui/macro.rs:63:1
+  --> ui/macro.rs:61:1
    |
-63 | / bounded_integer! {
-64 | |     #[derive(Default)]
-65 | |     #[cfg_attr(all(), another_disallowed)]
-66 | |     pub struct DisallowedAttr(1_u8, (1));
-67 | | }
+61 | / bounded_integer! {
+62 | |     #[derive(Default)]
+63 | |     #[cfg_attr(all(), another_disallowed)]
+64 | |     pub struct DisallowedAttr(1_u8, (1));
+65 | | }
    | |_^
    |
    = note: this error originates in the macro `$crate::__helper` which comes from the expansion of the macro `bounded_integer` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error: for soundness reasons, custom attributes are not allowed
-  --> ui/macro.rs:63:1
+  --> ui/macro.rs:61:1
    |
-63 | / bounded_integer! {
-64 | |     #[derive(Default)]
-65 | |     #[cfg_attr(all(), another_disallowed)]
-66 | |     pub struct DisallowedAttr(1_u8, (1));
-67 | | }
+61 | / bounded_integer! {
+62 | |     #[derive(Default)]
+63 | |     #[cfg_attr(all(), another_disallowed)]
+64 | |     pub struct DisallowedAttr(1_u8, (1));
+65 | | }
    | |_^
    |
    = note: this error originates in the macro `$crate::__helper` which comes from the expansion of the macro `bounded_integer` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error: cannot find attribute `another_disallowed` in this scope
-  --> ui/macro.rs:65:23
+  --> ui/macro.rs:63:23
    |
-65 |     #[cfg_attr(all(), another_disallowed)]
+63 |     #[cfg_attr(all(), another_disallowed)]
    |                       ^^^^^^^^^^^^^^^^^^
 
 error[E0308]: mismatched types
-  --> ui/macro.rs:76:29
+  --> ui/macro.rs:74:29
    |
-76 |     pub struct ReprWrong(0, 1_u16);
+74 |     pub struct ReprWrong(0, 1_u16);
    |                             ^^^^^ expected `u8`, found `u16`
    |
 help: change the type of the numeric literal from `u16` to `u8`
    |
-76 -     pub struct ReprWrong(0, 1_u16);
-76 +     pub struct ReprWrong(0, 1_u8);
+74 -     pub struct ReprWrong(0, 1_u16);
+74 +     pub struct ReprWrong(0, 1_u8);
    |
 
 error[E0080]: trying to set discriminant of a std::option::Option<ReprTooSmall> to the niched variant, but the value does not match
-  --> ui/macro.rs:69:1
+  --> ui/macro.rs:67:1
    |
-69 | / bounded_integer! {
-70 | |     #[repr(u8)]
-71 | |     pub struct ReprTooSmall(256, 257);
-72 | | }
+67 | / bounded_integer! {
+68 | |     #[repr(u8)]
+69 | |     pub struct ReprTooSmall(256, 257);
+70 | | }
    | |_^ evaluation of `__bounded_integer_private_ReprTooSmall::_::<impl __bounded_integer_private_ReprTooSmall::ReprTooSmall>::MIN` failed inside this call
    |
 note: inside `__bounded_integer_private_ReprTooSmall::_::<impl ReprTooSmall>::new`
-  --> ui/macro.rs:69:1
+  --> ui/macro.rs:67:1
    |
-69 | / bounded_integer! {
-70 | |     #[repr(u8)]
-71 | |     pub struct ReprTooSmall(256, 257);
-72 | | }
+67 | / bounded_integer! {
+68 | |     #[repr(u8)]
+69 | |     pub struct ReprTooSmall(256, 257);
+70 | | }
    | |_^ the failure occurred here
    = note: this error originates in the macro `$crate::__unsafe_api_internal` which comes from the expansion of the macro `bounded_integer` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 note: erroneous constant encountered
-  --> ui/macro.rs:69:1
+  --> ui/macro.rs:67:1
    |
-69 | / bounded_integer! {
-70 | |     #[repr(u8)]
-71 | |     pub struct ReprTooSmall(256, 257);
-72 | | }
+67 | / bounded_integer! {
+68 | |     #[repr(u8)]
+69 | |     pub struct ReprTooSmall(256, 257);
+70 | | }
    | |_^
    |
    = note: this note originates in the macro `$crate::__unsafe_api_internal` which comes from the expansion of the macro `bounded_integer` (in Nightly builds, run with -Z macro-backtrace for more info)

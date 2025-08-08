@@ -103,6 +103,7 @@
 
 // TODO: propagate warning attributes to all items in the macro
 // TODO: TryFrom and TryInto
+// TODO: Test the `where` clause
 
 #[cfg(feature = "std")]
 extern crate std;

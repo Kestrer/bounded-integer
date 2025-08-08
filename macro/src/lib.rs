@@ -187,14 +187,21 @@ pub fn bounded_integer(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
         [t] => panic!("named ({t})"),
     }
 
-    let zeroable = min_val
+    let zero = min_val
         .zip(max_val)
         .map(|(min, max)| (min..=max).contains(&Int::new(true, 0)));
-    if zeroable == Some(true) && zerocopy {
+    let one = min_val
+        .zip(max_val)
+        .map(|(min, max)| (min..=max).contains(&Int::new(true, 1)));
+    if zero == Some(true) && zerocopy {
         attrs.extend(quote!(#[derive(#crate_path::__private::zerocopy::FromZeros)]));
     }
-    let zeroable_token = match zeroable {
-        Some(true) => quote!(zeroable,),
+    let zero_token = match zero {
+        Some(true) => quote!(zero,),
+        Some(false) | None => quote!(),
+    };
+    let one_token = match one {
+        Some(true) => quote!(one,),
         Some(false) | None => quote!(),
     };
 
@@ -224,7 +231,7 @@ pub fn bounded_integer(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
 
     let item = match variants {
         Some(variants) => quote!({ #variants }),
-        None if zeroable == Some(false) => quote!((::core::num::NonZero<#repr>);),
+        None if zero == Some(false) => quote!((::core::num::NonZero<#repr>);),
         None => quote!((#repr);),
     };
 
@@ -242,7 +249,8 @@ pub fn bounded_integer(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
                 unsafe repr: #repr,
                 min: #min,
                 max: #max,
-                #zeroable_token
+                #zero_token
+                #one_token
             }
         }
         #vis use #module_name::#name;

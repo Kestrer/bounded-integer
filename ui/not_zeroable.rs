@@ -1,14 +1,23 @@
-#![cfg_attr(feature = "step_trait", feature(step_trait))]
-
 #[repr(transparent)]
-struct S(u8);
+struct A(u8);
 
 bounded_integer::unsafe_api! {
-    for S,
+    for A,
     unsafe repr: u8,
     min: 1,
     max: 1,
-    zeroable,
+    zero,
+}
+
+#[repr(transparent)]
+struct B(u8);
+
+bounded_integer::unsafe_api! {
+    for B,
+    unsafe repr: u8,
+    min: 0,
+    max: 0,
+    one,
 }
 
 fn main() {}

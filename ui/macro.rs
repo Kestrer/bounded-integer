@@ -1,5 +1,3 @@
-#![cfg_attr(feature = "step_trait", feature(step_trait))]
-
 use bounded_integer::bounded_integer;
 
 bounded_integer! {
