@@ -101,7 +101,6 @@
 #![cfg_attr(feature = "__doc", feature(doc_auto_cfg))]
 #![no_std]
 
-// TODO: propagate warning attributes to all items in the macro
 // TODO: TryFrom and TryInto
 
 #[cfg(feature = "std")]

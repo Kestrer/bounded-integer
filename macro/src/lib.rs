@@ -54,22 +54,37 @@ pub fn bounded_integer(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
     };
 
     let mut new_attrs = TokenStream::new();
+    let mut import_attrs = TokenStream::new();
     let mut maybe_repr = None;
     for attr in attrs {
         let TokenTree::Group(group) = &attr else {
             panic!("attr ({attr})")
         };
-        let mut iter = group.stream().into_iter();
-        if let [Some(TokenTree::Ident(i)), Some(TokenTree::Group(g)), None] =
-            [iter.next(), iter.next(), iter.next()]
-            && i == "repr"
-            && g.delimiter() == Delimiter::Parenthesis
-        {
-            if maybe_repr.is_some() {
-                return error!(i.span(), "duplicate `repr` attribute");
+        let tokens = group.stream().into_iter().collect::<Vec<_>>();
+        if let Some(TokenTree::Ident(i)) = tokens.first() {
+            let name = i.to_string();
+
+            if name == "repr"
+                && let [_, TokenTree::Group(g)] = &*tokens
+                && g.delimiter() == Delimiter::Parenthesis
+            {
+                if maybe_repr.is_some() {
+                    return error!(i.span(), "duplicate `repr` attribute");
+                }
+                maybe_repr = Some(g.stream());
+                continue;
+            } else if ["allow", "expect", "warn", "deny", "forbid"].contains(&&*name)
+                && let [_, TokenTree::Group(g)] = &*tokens
+                && g.delimiter() == Delimiter::Parenthesis
+                && let [Some(TokenTree::Ident(lint)), None] = {
+                    let mut iter = g.stream().into_iter();
+                    [iter.next(), iter.next()]
+                }
+                && (lint == "unused" || lint == "unused_imports")
+            {
+                import_attrs.extend(quote!(# #attr));
+                continue;
             }
-            maybe_repr = Some(g.stream());
-            continue;
         }
         new_attrs.extend(quote!(# #attr));
     }
@@ -255,7 +270,7 @@ pub fn bounded_integer(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
                 #one_token
             }
         }
-        #vis use #module_name::#name;
+        #import_attrs #vis use #module_name::#name;
     );
 
     res.into()

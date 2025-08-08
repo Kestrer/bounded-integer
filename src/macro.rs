@@ -216,15 +216,13 @@ mod tests {
 
     #[test]
     fn all_below_zero() {
-        #![expect(unused)]
-        bounded_integer!(struct Struct(-400, -203););
-        bounded_integer!(enum Enum(-500, -483););
+        bounded_integer!(#[expect(unused)] struct Struct(-400, -203););
+        bounded_integer!(#[expect(unused)] enum Enum(-500, -483););
     }
 
     #[test]
     fn outer_attrs() {
-        #![expect(unused)]
-        bounded_integer!(#![expect(double_negations)] struct S(--1, 4_i8););
+        bounded_integer!(#![expect(double_negations)] #[expect(unused)] struct S(--1, 4_i8););
     }
 
     #[test]
@@ -425,9 +423,8 @@ mod tests {
 
     #[test]
     fn repr_without_repr() {
-        #![expect(unused)]
-        bounded_integer!(struct Owo(0_u8, 2 + 2););
-        bounded_integer!(struct Uwu(-57 * 37, 8_i64););
+        bounded_integer!(#[expect(unused)] struct Owo(0_u8, 2 + 2););
+        bounded_integer!(#[expect(unused)] struct Uwu(-57 * 37, 8_i64););
     }
 
     #[test]
