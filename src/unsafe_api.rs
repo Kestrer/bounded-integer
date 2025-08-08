@@ -50,6 +50,7 @@
 #[macro_export]
 macro_rules! unsafe_api {
     (
+        $(#![$($attr:tt)*])*
         $([$($generics:tt)*])? for $ty:ty $(where { $($where:tt)* })?,
         unsafe repr: $repr:tt,
         min: $min:expr,
@@ -59,6 +60,7 @@ macro_rules! unsafe_api {
     ) => {
         $crate::__unsafe_api_internal! {
             @repr $repr,
+            $(#![$($attr)*])*
             [$($($generics)*)?] for $ty where { $($($where)*)? },
             ([$($($generics)*)?] where $($($where)*)?),
             min: $min,
@@ -80,13 +82,14 @@ macro_rules! __unsafe_api_internal {
             non_supersets: [$($non_super:ty),* $(,)?],
             $(has_wide $([$($__:tt)* $has_wide:tt])?,)?
         },
+        $(#![$($attr:tt)*])*
         [$($generics:tt)*] for $ty:ty where { $($where:tt)* },
         $generics_single_token:tt,
         min: $min:expr,
         max: $max:expr,
         $(zero $([$zero:tt])?,)?
         $(one $([$one:tt])?,)?
-    ) => { const _: () = {
+    ) => { $(#[$($attr)*])* const _: () = {
         // The presence of these imports is somewhat unhygienic: it means users cannot name their
         // type any of these things. This can always be changed if the need arises.
         use ::core::assert;
@@ -1592,6 +1595,23 @@ mod tests {
             unsafe repr: i32,
             min: -1,
             max: i32::MAX,
+            zero,
+            one,
+        }
+    }
+
+    #[test]
+    fn attr() {
+        #[deprecated]
+        #[repr(transparent)]
+        struct S(i32);
+
+        unsafe_api! {
+            #![allow(deprecated)]
+            for S,
+            unsafe repr: i32,
+            min: 0,
+            max: 1,
             zero,
             one,
         }
