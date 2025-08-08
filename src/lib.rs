@@ -96,6 +96,7 @@
 //! [`Error`]: https://doc.rust-lang.org/stable/std/error/trait.Error.html
 //! [`ParseError`]: https://docs.rs/bounded-integer/*/bounded_integer/struct.ParseError.html
 #![warn(clippy::pedantic, rust_2018_idioms, unused_qualifications)]
+#![allow(clippy::items_after_statements, clippy::missing_errors_doc)]
 #![cfg_attr(feature = "step_trait", feature(step_trait))]
 #![cfg_attr(feature = "__doc", feature(doc_auto_cfg))]
 #![no_std]

@@ -70,7 +70,7 @@ mod tests {
     }
 
     #[test]
-    fn saturating() {
+    fn new_saturating() {
         type Bounded = BoundedI8<3, 10>;
         assert_eq!(Bounded::new_saturating(i8::MIN), Bounded::MIN);
         assert_eq!(Bounded::new_saturating(i8::MAX), Bounded::MAX);
@@ -128,8 +128,8 @@ mod tests {
 
     #[test]
     fn arithmetic() {
+        #![expect(clippy::modulo_one)]
         type Bounded = BoundedI8<-5, 20>;
-
         assert_eq!(Bounded::new(2).unwrap() + 3, 5);
         assert_eq!(Bounded::new(2).unwrap() - 5, -3);
         assert_eq!(Bounded::new(3).unwrap() * 5, 15);
@@ -144,11 +144,43 @@ mod tests {
         assert_eq!(Bounded::new(3).unwrap() << 1, 6);
         assert_eq!(Bounded::new(3).unwrap() >> 1, 1);
         variations!(Bounded, i8, + += - -= * *= / /= % %=);
+
         assert_eq!(Bounded::new(2).unwrap().pow(3).get(), 8);
         assert_eq!(Bounded::new(-3).unwrap().div_euclid(2).get(), -2);
         assert_eq!(Bounded::new(-3).unwrap().rem_euclid(2).get(), 1);
         assert_eq!(Bounded::new(-3).unwrap().abs().get(), 3);
         assert_eq!(Bounded::new(4).unwrap().abs().get(), 4);
+
+        macro_rules! variations {
+            ($ty:ty, $inner:ty, $($op:tt $op_assign:tt)*) => {
+                $(
+                    let _: $ty = <$ty>::new(0).unwrap() $op 1;
+                    let _: $ty = &<$ty>::new(0).unwrap() $op 1;
+                    let _: $ty = <$ty>::new(0).unwrap() $op &1;
+                    let _: $ty = &<$ty>::new(0).unwrap() $op &1;
+                    let _: $inner = 0 $op <$ty>::new(1).unwrap();
+                    let _: $inner = 0 $op &<$ty>::new(1).unwrap();
+                    let _: $inner = &0 $op <$ty>::new(1).unwrap();
+                    let _: $inner = &0 $op &<$ty>::new(1).unwrap();
+                    let _: $ty = <$ty>::new(0).unwrap() $op <$ty>::new(1).unwrap();
+                    let _: $ty = &<$ty>::new(0).unwrap() $op <$ty>::new(1).unwrap();
+                    let _: $ty = <$ty>::new(0).unwrap() $op &<$ty>::new(1).unwrap();
+                    let _: $ty = &<$ty>::new(0).unwrap() $op &<$ty>::new(1).unwrap();
+                    *&mut <$ty>::new(0).unwrap() $op_assign 1;
+                    *&mut <$ty>::new(0).unwrap() $op_assign &1;
+                    *&mut <$ty>::new(0).unwrap() $op_assign <$ty>::new(1).unwrap();
+                    *&mut <$ty>::new(0).unwrap() $op_assign &<$ty>::new(1).unwrap();
+                    *&mut 0 $op_assign <$ty>::new(1).unwrap();
+                    *&mut 0 $op_assign &<$ty>::new(1).unwrap();
+                )*
+            };
+        }
+        use variations;
+    }
+
+    #[test]
+    fn saturating() {
+        type Bounded = BoundedI8<-5, 20>;
         assert_eq!(Bounded::new(13).unwrap().saturating_add(1).get(), 14);
         assert_eq!(Bounded::new(14).unwrap().saturating_add(7).get(), 20);
         assert_eq!(Bounded::new(-2).unwrap().saturating_sub(-1).get(), -1);
@@ -161,6 +193,11 @@ mod tests {
         assert_eq!(Bounded::new(8).unwrap().saturating_neg().get(), -5);
         assert_eq!(Bounded::new(8).unwrap().saturating_abs().get(), 8);
         assert_eq!(<BoundedI8<-20, 5>>::new(-6).unwrap().saturating_abs(), 5);
+    }
+
+    #[test]
+    fn checked() {
+        type Bounded = BoundedI8<-5, 20>;
         assert_eq!(Bounded::new(13).unwrap().checked_add(2).unwrap().get(), 15);
         assert_eq!(Bounded::new(14).unwrap().checked_add(7), None);
         assert_eq!(Bounded::new(-2).unwrap().checked_sub(-1).unwrap().get(), -1);
@@ -192,6 +229,11 @@ mod tests {
         assert_eq!(Bounded::new(-3).unwrap().checked_abs().unwrap().get(), 3);
         assert_eq!(Bounded::new(6).unwrap().checked_abs().unwrap().get(), 6);
         assert_eq!(<BoundedI8<-20, 5>>::new(-6).unwrap().checked_abs(), None);
+    }
+
+    #[test]
+    fn wrapping() {
+        type Bounded = BoundedI8<-5, 20>;
         assert_eq!(Bounded::new(0).unwrap().wrapping_add(0).get(), 0);
         assert_eq!(Bounded::new(-5).unwrap().wrapping_add(-128), -3);
         assert_eq!(Bounded::new(-5).unwrap().wrapping_sub(127), -2);
@@ -207,32 +249,6 @@ mod tests {
         assert_eq!(Bounded::new(6).unwrap().wrapping_abs(), 6);
         assert_eq!(<BoundedI8<-20, 5>>::new(-6).unwrap().wrapping_abs(), -20);
         assert_eq!(Bounded::new(5).unwrap().wrapping_pow(607), -5);
-
-        macro_rules! variations {
-            ($ty:ty, $inner:ty, $($op:tt $op_assign:tt)*) => {
-                $(
-                    let _: $ty = <$ty>::new(0).unwrap() $op 1;
-                    let _: $ty = &<$ty>::new(0).unwrap() $op 1;
-                    let _: $ty = <$ty>::new(0).unwrap() $op &1;
-                    let _: $ty = &<$ty>::new(0).unwrap() $op &1;
-                    let _: $inner = 0 $op <$ty>::new(1).unwrap();
-                    let _: $inner = 0 $op &<$ty>::new(1).unwrap();
-                    let _: $inner = &0 $op <$ty>::new(1).unwrap();
-                    let _: $inner = &0 $op &<$ty>::new(1).unwrap();
-                    let _: $ty = <$ty>::new(0).unwrap() $op <$ty>::new(1).unwrap();
-                    let _: $ty = &<$ty>::new(0).unwrap() $op <$ty>::new(1).unwrap();
-                    let _: $ty = <$ty>::new(0).unwrap() $op &<$ty>::new(1).unwrap();
-                    let _: $ty = &<$ty>::new(0).unwrap() $op &<$ty>::new(1).unwrap();
-                    *&mut <$ty>::new(0).unwrap() $op_assign 1;
-                    *&mut <$ty>::new(0).unwrap() $op_assign &1;
-                    *&mut <$ty>::new(0).unwrap() $op_assign <$ty>::new(1).unwrap();
-                    *&mut <$ty>::new(0).unwrap() $op_assign &<$ty>::new(1).unwrap();
-                    *&mut 0 $op_assign <$ty>::new(1).unwrap();
-                    *&mut 0 $op_assign &<$ty>::new(1).unwrap();
-                )*
-            };
-        }
-        use variations;
     }
 
     #[test]
@@ -244,6 +260,7 @@ mod tests {
     #[test]
     fn iter() {
         type Bounded = BoundedI8<-8, 8>;
+        #[expect(clippy::trivially_copy_pass_by_ref)]
         fn b(&n: &i8) -> Bounded {
             Bounded::new(n).unwrap()
         }
@@ -321,6 +338,7 @@ mod tests {
 
     #[test]
     #[cfg(feature = "num-traits02")]
+    #[expect(clippy::too_many_lines)]
     fn num() {
         use num_traits02::{
             AsPrimitive, Bounded, CheckedAdd, CheckedDiv, CheckedMul, CheckedNeg, CheckedRem,
@@ -356,8 +374,10 @@ mod tests {
         assert_eq!(<B as AsPrimitive<i64>>::as_(b(4)), 4i64);
         assert_eq!(<B as AsPrimitive<i128>>::as_(b(4)), 4i128);
         assert_eq!(<B as AsPrimitive<isize>>::as_(b(4)), 4isize);
-        assert_eq!(<B as AsPrimitive<f32>>::as_(b(4)), 4f32);
-        assert_eq!(<B as AsPrimitive<f64>>::as_(b(4)), 4f64);
+        #[expect(clippy::float_cmp)]
+        let () = assert_eq!(<B as AsPrimitive<f32>>::as_(b(4)), 4f32);
+        #[expect(clippy::float_cmp)]
+        let () = assert_eq!(<B as AsPrimitive<f64>>::as_(b(4)), 4f64);
 
         assert_eq!(B::from_u8(4u8), Some(b(4)));
         assert_eq!(B::from_u16(4u16), Some(b(4)));

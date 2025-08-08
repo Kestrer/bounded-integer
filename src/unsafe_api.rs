@@ -106,6 +106,7 @@ macro_rules! __unsafe_api_internal {
         use $crate::__private::Dispatch;
 
         #[allow(dead_code)]
+        #[allow(clippy::double_must_use)]
         impl<$($generics)*> $ty where $($where)* {
             /// The smallest value this bounded integer can contain.
             pub const MIN_VALUE: $inner = $min;
@@ -266,6 +267,8 @@ macro_rules! __unsafe_api_internal {
                     let Some((range, left, right)) = offsets else {
                         // In the case where the range spans this entire type, truncating is
                         // equivalent to taking modulo.
+                        #[allow(clippy::cast_possible_truncation)]
+                        #[allow(clippy::cast_sign_loss)]
                         return unsafe { Self::new_unchecked(n as _) };
                     };
 
@@ -280,6 +283,7 @@ macro_rules! __unsafe_api_internal {
 
                     // Calculate `shifted mod range`. Since `range` fits in an `Unsigned`, we
                     // know the result will too.
+                    #[allow(clippy::cast_possible_truncation)]
                     let rem = <Dispatch<$super>>::rem_euclid_unsigned(shifted, range_t) as _;
 
                     let inner = <Dispatch<$inner>>::checked_add_unsigned(Self::MIN_VALUE, rem).unwrap();
@@ -1252,7 +1256,9 @@ macro_rules! __unsafe_api_internal {
                 }
             }
 
-            #[automatically_derived]
+            // Disable this to prevent triggering `clippy::unsafe_derive_deserialize`. I couldn’t
+            // figure out how to `#[allow]` it.
+            // #[automatically_derived]
             impl<'__de, $($generics)*> Deserialize<'__de> for $ty {
                 fn deserialize<D: Deserializer<'__de>>(deserializer: D) -> Result<Self, D::Error> {
                     Self::new(<$inner>::deserialize(deserializer)?)

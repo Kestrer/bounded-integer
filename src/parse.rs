@@ -43,10 +43,14 @@ macro_rules! from_str_radix_impl {
                         yeet!(ParseErrorKind::InvalidDigit);
                     };
 
+                    #[allow(clippy::cast_possible_wrap)]
+                    #[allow(clippy::cast_possible_truncation)]
                     let Some(new_result) = result.checked_mul(radix as $ty) else {
                         yeet!(overflow_kind);
                     };
 
+                    #[allow(clippy::cast_possible_wrap)]
+                    #[allow(clippy::cast_possible_truncation)]
                     let Some(new_result) = (if positive {
                         new_result.checked_add(digit_value as $ty)
                     } else {
@@ -119,11 +123,13 @@ pub enum ParseErrorKind {
     BelowMin,
 }
 
+#[must_use]
 pub const fn error_below_min() -> ParseError {
     ParseError {
         kind: ParseErrorKind::BelowMin,
     }
 }
+#[must_use]
 pub const fn error_above_max() -> ParseError {
     ParseError {
         kind: ParseErrorKind::AboveMax,

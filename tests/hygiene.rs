@@ -2,7 +2,7 @@
 #![no_std]
 #![cfg_attr(feature = "step_trait", feature(step_trait))]
 #![cfg(feature = "macro")]
-#![forbid(clippy::pedantic)]
+#![deny(clippy::pedantic)]
 
 #[expect(dead_code, non_camel_case_types)]
 struct u8 {}

@@ -1,3 +1,5 @@
+#![expect(clippy::must_use_candidate)]
+
 use core::num::NonZero;
 
 pub trait PrimInt {
@@ -48,6 +50,8 @@ macro_rules! generate {
             }
             pub const fn rem_euclid_unsigned(lhs: $signed, rhs: NonZero<$unsigned>) -> $unsigned {
                 // In my benchmarks, this is faster than methods involving widening.
+                #[expect(clippy::cast_possible_wrap)]
+                #[expect(clippy::cast_sign_loss)]
                 if 0 <= lhs {
                     // If `lhs` is nonnegative, just use regular unsigned remainder.
                     (lhs as $unsigned).rem_euclid(rhs.get())

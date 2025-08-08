@@ -406,7 +406,7 @@ mod tests {
         use crate::bounded_integer;
 
         bounded_integer! {
-            #[cfg_attr(all(), doc = "")]
+            #[cfg_attr(all(), doc = "…")]
             #[deprecated]
             #[must_use]
             struct S(0, 255);
