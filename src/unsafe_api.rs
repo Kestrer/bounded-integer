@@ -59,7 +59,7 @@ macro_rules! unsafe_api {
     ) => {
         $crate::__unsafe_api_internal! {
             @repr $repr,
-            [$($($generics)*)?] $ty where { $($($where)*)? },
+            [$($($generics)*)?] for $ty where { $($($where)*)? },
             ([$($($generics)*)?] where $($($where)*)?),
             min: $min,
             max: $max,
@@ -80,7 +80,7 @@ macro_rules! __unsafe_api_internal {
             non_supersets: [$($non_super:ty),* $(,)?],
             $(has_wide $([$($__:tt)* $has_wide:tt])?,)?
         },
-        [$($generics:tt)*] $ty:ty where { $($where:tt)* },
+        [$($generics:tt)*] for $ty:ty where { $($where:tt)* },
         $generics_single_token:tt,
         min: $min:expr,
         max: $max:expr,
@@ -236,10 +236,10 @@ macro_rules! __unsafe_api_internal {
             ///
             /// For `n` in range, this is an identity function, and it wraps for `n` out of range.
             ///
-            /// The type parameter `T` must be any integer type that is a superset of this one.
+            /// The type parameter `Z` must be any integer type that is a superset of this one.
             #[must_use]
             #[inline]
-            pub const fn new_wrapping<T: LargerInt>(n: T) -> Self {
+            pub const fn new_wrapping<__Z: LargerInt>(n: __Z) -> Self {
                 const { assert!(Self::MIN_VALUE < Self::MAX_VALUE) };
                 let range_sub_one: Unsigned<$inner> = Self::MAX_VALUE.abs_diff(Self::MIN_VALUE);
                 let offsets = match range_sub_one.checked_add(1) {
@@ -262,12 +262,12 @@ macro_rules! __unsafe_api_internal {
 
                 const {
                     let mut n: u32 = 0;
-                    $(n += str_eq(T::KIND, stringify!($super)) as u32;)*
+                    $(n += str_eq(__Z::KIND, stringify!($super)) as u32;)*
                     assert!(n == 1);
                 }
 
-                $(if str_eq(T::KIND, stringify!($super)) {
-                    let n = unsafe { ::core::mem::transmute_copy::<T, $super>(&n) };
+                $(if str_eq(__Z::KIND, stringify!($super)) {
+                    let n = unsafe { ::core::mem::transmute_copy::<__Z, $super>(&n) };
 
                     let Some((range, left, right)) = offsets else {
                         // In the case where the range spans this entire type, truncating is
@@ -277,7 +277,7 @@ macro_rules! __unsafe_api_internal {
                         return unsafe { Self::new_unchecked(n as _) };
                     };
 
-                    // At least one of `n − left` and `n + right` fits in a `T`. We calculate
+                    // At least one of `n − left` and `n + right` fits in a `__Z`. We calculate
                     // this value.
                     let shifted = match <Dispatch<$super>>::checked_add_unsigned(n, right as _) {
                         Some(n) => n,
@@ -771,7 +771,7 @@ macro_rules! __unsafe_api_internal {
 
         #[cfg(not(all($($(if $signed)? false)?)))]
         #[automatically_derived]
-        impl<$($generics)*> Neg for $ty $($where)* {
+        impl<$($generics)*> Neg for $ty where $($where)* {
             type Output = Self;
             #[inline]
             fn neg(self) -> Self::Output {
@@ -792,7 +792,7 @@ macro_rules! __unsafe_api_internal {
         use ::core::ops::Not;
 
         #[automatically_derived]
-        impl<$($generics)*> Not for $ty {
+        impl<$($generics)*> Not for $ty where $($where)* {
             type Output = Self;
             #[inline]
             fn not(self) -> Self::Output {
@@ -812,52 +812,52 @@ macro_rules! __unsafe_api_internal {
         // === Comparisons and Hash ===
 
         #[automatically_derived]
-        impl<$($generics)*> PartialEq<$inner> for $ty {
+        impl<$($generics)*> PartialEq<$inner> for $ty where $($where)* {
             #[inline]
             fn eq(&self, other: &$inner) -> bool {
                 self.get() == *other
             }
         }
         #[automatically_derived]
-        impl<$($generics)*> PartialEq<$ty> for $inner {
+        impl<$($generics)*> PartialEq<$ty> for $inner where $($where)* {
             #[inline]
             fn eq(&self, other: &$ty) -> bool {
                 *self == other.get()
             }
         }
         #[automatically_derived]
-        impl<$($generics)*> PartialEq for $ty {
+        impl<$($generics)*> PartialEq for $ty where $($where)* {
             #[inline]
             fn eq(&self, other: &$ty) -> bool {
                 self.get() == other.get()
             }
         }
         #[automatically_derived]
-        impl<$($generics)*> Eq for $ty {}
+        impl<$($generics)*> Eq for $ty where $($where)* {}
 
         #[automatically_derived]
-        impl<$($generics)*> PartialOrd<$inner> for $ty {
+        impl<$($generics)*> PartialOrd<$inner> for $ty where $($where)* {
             #[inline]
             fn partial_cmp(&self, other: &$inner) -> Option<cmp::Ordering> {
                 self.get().partial_cmp(other)
             }
         }
         #[automatically_derived]
-        impl<$($generics)*> PartialOrd<$ty> for $inner {
+        impl<$($generics)*> PartialOrd<$ty> for $inner where $($where)* {
             #[inline]
             fn partial_cmp(&self, other: &$ty) -> Option<cmp::Ordering> {
                 self.partial_cmp(&other.get())
             }
         }
         #[automatically_derived]
-        impl<$($generics)*> PartialOrd for $ty {
+        impl<$($generics)*> PartialOrd for $ty where $($where)* {
             #[inline]
             fn partial_cmp(&self, other: &$ty) -> Option<cmp::Ordering> {
                 Some(self.cmp(other))
             }
         }
         #[automatically_derived]
-        impl<$($generics)*> Ord for $ty {
+        impl<$($generics)*> Ord for $ty where $($where)* {
             #[inline]
             fn cmp(&self, other: &$ty) -> cmp::Ordering {
                 self.get().cmp(&other.get())
@@ -865,7 +865,7 @@ macro_rules! __unsafe_api_internal {
         }
 
         #[automatically_derived]
-        impl<$($generics)*> Hash for $ty {
+        impl<$($generics)*> Hash for $ty where $($where)* {
             #[inline]
             fn hash<H: Hasher>(&self, state: &mut H) {
                 self.get().hash(state);
@@ -875,14 +875,14 @@ macro_rules! __unsafe_api_internal {
         // === AsRef, Borrow ===
 
         #[automatically_derived]
-        impl<$($generics)*> AsRef<$inner> for $ty {
+        impl<$($generics)*> AsRef<$inner> for $ty where $($where)* {
             #[inline]
             fn as_ref(&self) -> &$inner {
                 self.get_ref()
             }
         }
         #[automatically_derived]
-        impl<$($generics)*> Borrow<$inner> for $ty {
+        impl<$($generics)*> Borrow<$inner> for $ty where $($where)* {
             #[inline]
             fn borrow(&self) -> &$inner {
                 self.get_ref()
@@ -893,14 +893,14 @@ macro_rules! __unsafe_api_internal {
 
         // Sum bounded to bounded
         #[automatically_derived]
-        impl<$($generics)*> iter::Sum for $ty {
+        impl<$($generics)*> iter::Sum for $ty where $($where)* {
             fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
                 iter.reduce(Add::add)
                     .unwrap_or_else(|| Self::new(0).expect("Attempted to sum to zero"))
             }
         }
         #[automatically_derived]
-        impl<'__a, $($generics)*> iter::Sum<&'__a Self> for $ty {
+        impl<'__a, $($generics)*> iter::Sum<&'__a Self> for $ty where $($where)* {
             fn sum<I: Iterator<Item = &'__a Self>>(iter: I) -> Self {
                 iter.copied().sum()
             }
@@ -908,13 +908,13 @@ macro_rules! __unsafe_api_internal {
 
         // Sum bounded to primitive
         #[automatically_derived]
-        impl<$($generics)*> iter::Sum<$ty> for $inner {
+        impl<$($generics)*> iter::Sum<$ty> for $inner where $($where)* {
             fn sum<I: Iterator<Item = $ty>>(iter: I) -> Self {
                 iter.map(<$ty>::get).sum()
             }
         }
         #[automatically_derived]
-        impl<'__a, $($generics)*> iter::Sum<&'__a $ty> for $inner {
+        impl<'__a, $($generics)*> iter::Sum<&'__a $ty> for $inner where $($where)* {
             fn sum<I: Iterator<Item = &'__a $ty>>(iter: I) -> Self {
                 iter.copied().sum()
             }
@@ -922,14 +922,14 @@ macro_rules! __unsafe_api_internal {
 
         // Take product of bounded to bounded
         #[automatically_derived]
-        impl<$($generics)*> iter::Product for $ty {
+        impl<$($generics)*> iter::Product for $ty where $($where)* {
             fn product<I: Iterator<Item = Self>>(iter: I) -> Self {
                 iter.reduce(Mul::mul)
                     .unwrap_or_else(|| Self::new(1).expect("Attempted to take product to one"))
             }
         }
         #[automatically_derived]
-        impl<'__a, $($generics)*> iter::Product<&'__a Self> for $ty {
+        impl<'__a, $($generics)*> iter::Product<&'__a Self> for $ty where $($where)* {
             fn product<I: Iterator<Item = &'__a Self>>(iter: I) -> Self {
                 iter.copied().product()
             }
@@ -937,13 +937,13 @@ macro_rules! __unsafe_api_internal {
 
         // Take product of bounded to primitive
         #[automatically_derived]
-        impl<$($generics)*> iter::Product<$ty> for $inner {
+        impl<$($generics)*> iter::Product<$ty> for $inner where $($where)* {
             fn product<I: Iterator<Item = $ty>>(iter: I) -> Self {
                 iter.map(<$ty>::get).product()
             }
         }
         #[automatically_derived]
-        impl<'__a, $($generics)*> iter::Product<&'__a $ty> for $inner {
+        impl<'__a, $($generics)*> iter::Product<&'__a $ty> for $inner where $($where)* {
             fn product<I: Iterator<Item = &'__a $ty>>(iter: I) -> Self {
                 iter.copied().product()
             }
@@ -951,7 +951,7 @@ macro_rules! __unsafe_api_internal {
 
         $crate::__private::__cfg_step_trait! {
             #[automatically_derived]
-            impl<$($generics)*> iter::Step for $ty {
+            impl<$($generics)*> iter::Step for $ty where $($where)* {
                 #[inline]
                 fn steps_between(start: &Self, end: &Self) -> (usize, Option<usize>) {
                     iter::Step::steps_between(&start.get(), &end.get())
@@ -970,7 +970,7 @@ macro_rules! __unsafe_api_internal {
         // === Parsing ===
 
         #[automatically_derived]
-        impl<$($generics)*> FromStr for $ty {
+        impl<$($generics)*> FromStr for $ty where $($where)* {
             type Err = ParseError;
             fn from_str(s: &str) -> Result<Self, Self::Err> {
                 Self::from_str_radix(s, 10)
@@ -1002,7 +1002,7 @@ macro_rules! __unsafe_api_internal {
             use $crate::__private::arbitrary1::{self, Arbitrary, Unstructured};
 
             #[automatically_derived]
-            impl<'__a, $($generics)*> Arbitrary<'__a> for $ty {
+            impl<'__a, $($generics)*> Arbitrary<'__a> for $ty where $($where)* {
                 fn arbitrary(u: &mut Unstructured<'__a>) -> arbitrary1::Result<Self> {
                     Self::new(u.arbitrary()?).ok_or(arbitrary1::Error::IncorrectFormat)
                 }
@@ -1020,18 +1020,26 @@ macro_rules! __unsafe_api_internal {
             use $crate::__private::bytemuck1;
 
             #[automatically_derived]
-            unsafe impl<$($generics)*> bytemuck1::Contiguous for $ty {
+            unsafe impl<$($generics)*> bytemuck1::Contiguous for $ty
+            where
+                Self: 'static,
+                $($where)*
+            {
                 type Int = $inner;
                 const MAX_VALUE: $inner = Self::MAX_VALUE;
                 const MIN_VALUE: $inner = Self::MIN_VALUE;
             }
 
             #[automatically_derived]
-            unsafe impl<$($generics)*> bytemuck1::NoUninit for $ty {}
+            unsafe impl<$($generics)*> bytemuck1::NoUninit for $ty
+            where
+                Self: 'static,
+                $($where)*
+            {}
 
             #[cfg(not(all($($(if $zero)? false)?)))]
             #[automatically_derived]
-            unsafe impl<$($generics)*> bytemuck1::Zeroable for $ty {}
+            unsafe impl<$($generics)*> bytemuck1::Zeroable for $ty where $($where)* {}
         }
 
         // === Num ===
@@ -1040,7 +1048,7 @@ macro_rules! __unsafe_api_internal {
             use $crate::__private::num_traits02;
 
             #[automatically_derived]
-            impl<$($generics)*> num_traits02::Bounded for $ty {
+            impl<$($generics)*> num_traits02::Bounded for $ty where $($where)* {
                 fn min_value() -> Self {
                     Self::MIN
                 }
@@ -1054,6 +1062,8 @@ macro_rules! __unsafe_api_internal {
             where
                 $inner: num_traits02::AsPrimitive<__T>,
                 __T: 'static + Copy,
+                Self: 'static,
+                $($where)*
             {
                 fn as_(self) -> __T {
                     self.get().as_()
@@ -1064,6 +1074,7 @@ macro_rules! __unsafe_api_internal {
             impl<$($generics)*> num_traits02::FromPrimitive for $ty
             where
                 $inner: num_traits02::FromPrimitive,
+                $($where)*
             {
                 fn from_i64(n: i64) -> Option<Self> {
                     <$inner>::from_i64(n).and_then(Self::new)
@@ -1113,8 +1124,9 @@ macro_rules! __unsafe_api_internal {
             impl<$($generics)*> num_traits02::NumCast for $ty
             where
                 $inner: num_traits02::NumCast,
+                $($where)*
             {
-                fn from<T: num_traits02::ToPrimitive>(n: T) -> Option<Self> {
+                fn from<__T: num_traits02::ToPrimitive>(n: __T) -> Option<Self> {
                     <$inner as num_traits02::NumCast>::from(n).map(Self::new).flatten()
                 }
             }
@@ -1123,6 +1135,7 @@ macro_rules! __unsafe_api_internal {
             impl<$($generics)*> num_traits02::ToPrimitive for $ty
             where
                 $inner: num_traits02::ToPrimitive,
+                $($where)*
             {
                 fn to_i64(&self) -> Option<i64> {
                     self.get().to_i64()
@@ -1169,56 +1182,56 @@ macro_rules! __unsafe_api_internal {
             }
 
             #[automatically_derived]
-            impl<$($generics)*> num_traits02::CheckedAdd for $ty {
+            impl<$($generics)*> num_traits02::CheckedAdd for $ty where $($where)* {
                 fn checked_add(&self, v: &Self) -> Option<Self> {
                     Self::checked_add(*self, v.get())
                 }
             }
 
             #[automatically_derived]
-            impl<$($generics)*> num_traits02::CheckedDiv for $ty {
+            impl<$($generics)*> num_traits02::CheckedDiv for $ty where $($where)* {
                 fn checked_div(&self, v: &Self) -> Option<Self> {
                     Self::checked_div(*self, v.get())
                 }
             }
 
             #[automatically_derived]
-            impl<$($generics)*> num_traits02::CheckedMul for $ty {
+            impl<$($generics)*> num_traits02::CheckedMul for $ty where $($where)* {
                 fn checked_mul(&self, v: &Self) -> Option<Self> {
                     Self::checked_mul(*self, v.get())
                 }
             }
 
             #[automatically_derived]
-            impl<$($generics)*> num_traits02::CheckedNeg for $ty {
+            impl<$($generics)*> num_traits02::CheckedNeg for $ty where $($where)* {
                 fn checked_neg(&self) -> Option<Self> {
                     Self::checked_neg(*self)
                 }
             }
 
             #[automatically_derived]
-            impl<$($generics)*> num_traits02::CheckedRem for $ty {
+            impl<$($generics)*> num_traits02::CheckedRem for $ty where $($where)* {
                 fn checked_rem(&self, v: &Self) -> Option<Self> {
                     Self::checked_rem(*self, v.get())
                 }
             }
 
             #[automatically_derived]
-            impl<$($generics)*> num_traits02::CheckedShl for $ty {
+            impl<$($generics)*> num_traits02::CheckedShl for $ty where $($where)* {
                 fn checked_shl(&self, v: u32) -> Option<Self> {
                     Self::checked_shl(*self, v)
                 }
             }
 
             #[automatically_derived]
-            impl<$($generics)*> num_traits02::CheckedShr for $ty {
+            impl<$($generics)*> num_traits02::CheckedShr for $ty where $($where)* {
                 fn checked_shr(&self, v: u32) -> Option<Self> {
                     Self::checked_shr(*self, v)
                 }
             }
 
             #[automatically_derived]
-            impl<$($generics)*> num_traits02::CheckedSub for $ty {
+            impl<$($generics)*> num_traits02::CheckedSub for $ty where $($where)* {
                 fn checked_sub(&self, v: &Self) -> Option<Self> {
                     Self::checked_sub(*self, v.get())
                 }
@@ -1228,6 +1241,7 @@ macro_rules! __unsafe_api_internal {
             impl<__A, __B, $($generics)*> num_traits02::MulAdd<__A, __B> for $ty
             where
                 $inner: num_traits02::MulAdd<__A, __B, Output = $inner>,
+                $($where)*
             {
                 type Output = $inner;
 
@@ -1237,21 +1251,21 @@ macro_rules! __unsafe_api_internal {
             }
 
             #[automatically_derived]
-            impl<$($generics)*> num_traits02::SaturatingAdd for $ty {
+            impl<$($generics)*> num_traits02::SaturatingAdd for $ty where $($where)* {
                 fn saturating_add(&self, v: &Self) -> Self {
                     Self::saturating_add(*self, v.get())
                 }
             }
 
             #[automatically_derived]
-            impl<$($generics)*> num_traits02::SaturatingMul for $ty {
+            impl<$($generics)*> num_traits02::SaturatingMul for $ty where $($where)* {
                 fn saturating_mul(&self, v: &Self) -> Self {
                     Self::saturating_mul(*self, v.get())
                 }
             }
 
             #[automatically_derived]
-            impl<$($generics)*> num_traits02::SaturatingSub for $ty {
+            impl<$($generics)*> num_traits02::SaturatingSub for $ty where $($where)* {
                 fn saturating_sub(&self, v: &Self) -> Self {
                     Self::saturating_sub(*self, v.get())
                 }
@@ -1259,7 +1273,7 @@ macro_rules! __unsafe_api_internal {
 
             #[cfg(not(all($($($zero)? false)?)))]
             #[automatically_derived]
-            impl<$($generics)*> num_traits02::Zero for $ty {
+            impl<$($generics)*> num_traits02::Zero for $ty where $($where)* {
                 fn zero() -> Self {
                     Self::default()
                 }
@@ -1270,7 +1284,7 @@ macro_rules! __unsafe_api_internal {
 
             #[cfg(not(all($($($one)? false)?)))]
             #[automatically_derived]
-            impl<$($generics)*> num_traits02::One for $ty {
+            impl<$($generics)*> num_traits02::One for $ty where $($where)* {
                 fn one() -> Self {
                     Self::one()
                 }
@@ -1283,7 +1297,7 @@ macro_rules! __unsafe_api_internal {
             use $crate::__private::serde1::{self, Deserialize, Deserializer, Serialize, Serializer};
 
             #[automatically_derived]
-            impl<$($generics)*> Serialize for $ty {
+            impl<$($generics)*> Serialize for $ty where $($where)* {
                 fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
                     self.get().serialize(serializer)
                 }
@@ -1292,7 +1306,7 @@ macro_rules! __unsafe_api_internal {
             // Disable this to prevent triggering `clippy::unsafe_derive_deserialize`. I couldn’t
             // figure out how to `#[allow]` it.
             // #[automatically_derived]
-            impl<'__de, $($generics)*> Deserialize<'__de> for $ty {
+            impl<'__de, $($generics)*> Deserialize<'__de> for $ty where $($where)* {
                 fn deserialize<D: Deserializer<'__de>>(deserializer: D) -> Result<Self, D::Error> {
                     Self::new(<$inner>::deserialize(deserializer)?)
                         .ok_or_else(|| {
@@ -1533,7 +1547,7 @@ macro_rules! __unsafe_api_internal {
         $(([$($generics:tt)*] where $($where:tt)*) $trait:ident,)*
     ) => { $(
         #[automatically_derived]
-        impl<$($generics)*> fmt::$trait for $ty {
+        impl<$($generics)*> fmt::$trait for $ty where $($where)* {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 fmt::$trait::fmt(&self.get(), f)
             }
@@ -1546,6 +1560,7 @@ macro_rules! __unsafe_api_internal {
 mod tests {
     use crate::unsafe_api;
     use core::ffi::c_int;
+    use core::marker::PhantomData;
 
     #[test]
     fn c_int() {
@@ -1564,6 +1579,21 @@ mod tests {
             min: -5,
             max: 5,
             zero,
+        }
+    }
+
+    #[test]
+    fn where_clause() {
+        #[repr(transparent)]
+        struct S<T: Copy>(i32, PhantomData<T>);
+
+        unsafe_api! {
+            [T] for S<T> where { T: Copy },
+            unsafe repr: i32,
+            min: -1,
+            max: i32::MAX,
+            zero,
+            one,
         }
     }
 }
