@@ -4,35 +4,53 @@
 #![cfg(feature = "macro")]
 #![forbid(clippy::pedantic)]
 
-#[allow(dead_code, non_camel_case_types)]
-mod primitives {
-    struct u8 {}
-    struct u16 {}
-    struct u32 {}
-    struct u64 {}
-    struct u128 {}
-    struct usize {}
-    struct i8 {}
-    struct i16 {}
-    struct i32 {}
-    struct i64 {}
-    struct i128 {}
-    struct isize {}
-}
+#[expect(dead_code, non_camel_case_types)]
+struct u8 {}
+#[expect(dead_code, non_camel_case_types)]
+struct u16 {}
+#[expect(dead_code, non_camel_case_types)]
+struct u32 {}
+#[expect(dead_code, non_camel_case_types)]
+struct u64 {}
+#[expect(dead_code, non_camel_case_types)]
+struct u128 {}
+#[expect(dead_code, non_camel_case_types)]
+struct usize {}
+#[expect(dead_code, non_camel_case_types)]
+struct i8 {}
+#[expect(dead_code, non_camel_case_types)]
+struct i16 {}
+#[expect(dead_code, non_camel_case_types)]
+struct i32 {}
+#[expect(dead_code, non_camel_case_types)]
+struct i64 {}
+#[expect(dead_code, non_camel_case_types)]
+struct i128 {}
+#[expect(dead_code, non_camel_case_types)]
+struct isize {}
 
 ::bounded_integer::bounded_integer! {
     #[repr(isize)]
-    pub struct StructSigned { -3..2 }
+    pub struct StructSigned(-3, 1);
 }
 ::bounded_integer::bounded_integer! {
     #[repr(u16)]
-    pub struct StructUnsigned { 36..65535 }
+    pub struct StructUnsigned(36, 65535);
 }
 ::bounded_integer::bounded_integer! {
     #[repr(i64)]
-    pub enum EnumSigned { -4..6 }
+    pub enum EnumSigned(-4, 5);
 }
 ::bounded_integer::bounded_integer! {
     #[repr(u8)]
-    pub enum EnumUnsigned { 253..255 }
+    pub enum EnumUnsigned(253, 255);
 }
+// generic parameters are not hygienic :(
+::bounded_integer::bounded_integer!(pub struct A(0, 0););
+::bounded_integer::bounded_integer!(pub struct B(0, 0););
+::bounded_integer::bounded_integer!(pub enum C(0, 0););
+::bounded_integer::bounded_integer!(
+    pub enum T {
+        X = 0,
+    }
+);

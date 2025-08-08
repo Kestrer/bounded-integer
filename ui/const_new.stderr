@@ -1,0 +1,33 @@
+error[E0080]: evaluation panicked: value passed to `const_new` is out of range
+ --> src/types.rs
+  |
+  | / define_bounded_integers! {
+  | |     BoundedU8(u8, unaligned, unsigned),
+  | |     BoundedU16(u16, unsigned),
+  | |     BoundedU32(u32, unsigned),
+... |
+  | |     BoundedIsize(isize),
+  | | }
+  | |_^ evaluation of `bounded_integer::types::_::<impl bounded_integer::BoundedUsize<0, 5>>::const_new::<6>::{constant#0}` failed here
+  |
+  = note: this error originates in the macro `$crate::__unsafe_api_internal` which comes from the expansion of the macro `define_bounded_integers` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+note: erroneous constant encountered
+  --> src/types.rs
+   |
+   | / define_bounded_integers! {
+   | |     BoundedU8(u8, unaligned, unsigned),
+   | |     BoundedU16(u16, unsigned),
+   | |     BoundedU32(u32, unsigned),
+...  |
+   | |     BoundedIsize(isize),
+   | | }
+   | |_^
+   |
+   = note: this note originates in the macro `$crate::__unsafe_api_internal` which comes from the expansion of the macro `define_bounded_integers` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+note: the above error was encountered while instantiating `fn bounded_integer::types::_::<impl bounded_integer::BoundedUsize<0, 5>>::const_new::<6>`
+ --> ui/const_new.rs:3:13
+  |
+3 |     let _ = <bounded_integer::BoundedUsize<0, 5>>::const_new::<6>();
+  |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

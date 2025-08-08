@@ -6,17 +6,11 @@ keywords = ["bounded", "integer", "macro", "refinement"]
 license = "ISC"
 repository = "https://github.com/Kestrer/bounded-integer"
 readme = "../README.md"
-edition = "2021"
+edition = "2024"
 
 [lib]
 proc-macro = true
 
-[features]
-# Internal-only feature, not public API
-generate_tests = []
-
 [dependencies]
 proc-macro2 = "1.0.24"
-syn = { version = "2.0.0", features = ["proc-macro", "parsing", "printing", "full"], default-features = false }
 quote = "1.0.9"
-num-bigint = "0.4.6"

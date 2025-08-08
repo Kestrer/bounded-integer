@@ -1,26 +1,14 @@
-use core::mem::transmute_copy;
 use core::num::NonZero;
 
-/// Marker trait for primitive integers.
-pub trait PrimInt: sealed::Sealed {}
-
-mod sealed {
-    use super::PrimInt;
-
-    // Not public API.
-    pub trait Sealed: 'static + Sized + Copy {
-        type NonZero: Into<Self>;
-        type Unsigned: Sealed;
-        fn checked_add_unsigned(self, rhs: Self::Unsigned) -> Option<Self>;
-        fn checked_sub_unsigned(self, rhs: Self::Unsigned) -> Option<Self>;
-        fn rem_euclid_unsigned(self, rhs: <Self::Unsigned as Sealed>::NonZero) -> Self::Unsigned;
-        fn truncate<T: PrimInt + Into<Self>>(self) -> T;
-        fn nonzero_from<T: PrimInt + Into<Self>>(val: T::NonZero) -> Self::NonZero;
-    }
+pub trait PrimInt {
+    type Signed;
+    type Unsigned;
 }
-pub(crate) use sealed::Sealed;
 
-gen! {
+pub type Signed<T> = <T as PrimInt>::Signed;
+pub type Unsigned<T> = <T as PrimInt>::Unsigned;
+
+generate! {
     u8 i8,
     u16 i16,
     u32 i32,
@@ -29,43 +17,36 @@ gen! {
     usize isize,
 }
 
-macro_rules! gen {
+macro_rules! generate {
     ($($unsigned:ident $signed:ident,)*) => { $(
-        pub(crate) mod $unsigned {
-            use core::num::NonZero;
+        impl PrimInt for $unsigned {
+            type Signed = $signed;
+            type Unsigned = $unsigned;
+        }
+        impl PrimInt for $signed {
+            type Signed = $signed;
+            type Unsigned = $unsigned;
+        }
 
-            pub(crate) type Unsigned = $unsigned;
-            #[allow(unused)] // only needed for non-u8
-            pub(crate) type Signed = $signed;
-            #[allow(unused)] // only needed for non-u8
-            pub(crate) use super::$signed as signed;
-
-            pub(crate) const fn checked_add_unsigned(lhs: Unsigned, rhs: Unsigned) -> Option<Unsigned> {
+        impl crate::__private::Dispatch<$unsigned> {
+            pub const fn checked_add_unsigned(lhs: $unsigned, rhs: $unsigned) -> Option<$unsigned> {
                 lhs.checked_add(rhs)
             }
-            pub(crate) const fn checked_sub_unsigned(lhs: Unsigned, rhs: Unsigned) -> Option<Unsigned> {
+            pub const fn checked_sub_unsigned(lhs: $unsigned, rhs: $unsigned) -> Option<$unsigned> {
                 lhs.checked_sub(rhs)
             }
-            pub(crate) const fn rem_euclid_unsigned(lhs: Unsigned, rhs: NonZero<Unsigned>) -> Unsigned {
+            pub const fn rem_euclid_unsigned(lhs: $unsigned, rhs: NonZero<$unsigned>) -> $unsigned {
                 lhs.rem_euclid(rhs.get())
             }
         }
-        pub(crate) mod $signed {
-            use core::num::NonZero;
-
-            pub(crate) type Unsigned = $unsigned;
-            #[allow(unused)] // only needed for non-u8
-            pub(crate) type Signed = $signed;
-            #[allow(unused)] // only needed for non-u8
-            pub(crate) use super::$signed as signed;
-
-            pub(crate) const fn checked_add_unsigned(lhs: Signed, rhs: Unsigned) -> Option<Signed> {
+        impl crate::__private::Dispatch<$signed> {
+            pub const fn checked_add_unsigned(lhs: $signed, rhs: $unsigned) -> Option<$signed> {
                 lhs.checked_add_unsigned(rhs)
             }
-            pub(crate) const fn checked_sub_unsigned(lhs: Signed, rhs: Unsigned) -> Option<Signed> {
+            pub const fn checked_sub_unsigned(lhs: $signed, rhs: $unsigned) -> Option<$signed> {
                 lhs.checked_sub_unsigned(rhs)
             }
-            pub(crate) const fn rem_euclid_unsigned(lhs: Signed, rhs: NonZero<Unsigned>) -> Unsigned {
+            pub const fn rem_euclid_unsigned(lhs: $signed, rhs: NonZero<$unsigned>) -> $unsigned {
                 // In my benchmarks, this is faster than methods involving widening.
                 if 0 <= lhs {
                     // If `lhs` is nonnegative, just use regular unsigned remainder.
@@ -82,42 +63,39 @@ macro_rules! gen {
                 }
             }
         }
-    )* gen_impl!($($unsigned $signed)*); };
-}
-use gen;
-
-macro_rules! gen_impl {
-    ($($ty:ident)*) => { $(
-        impl PrimInt for $ty {}
-
-        impl Sealed for $ty {
-            type NonZero = NonZero<$ty>;
-            type Unsigned = $ty::Unsigned;
-            fn checked_add_unsigned(self, rhs: Self::Unsigned) -> Option<Self> {
-                $ty::checked_add_unsigned(self, rhs)
-            }
-            fn checked_sub_unsigned(self, rhs: Self::Unsigned) -> Option<Self> {
-                $ty::checked_sub_unsigned(self, rhs)
-            }
-            fn rem_euclid_unsigned(self, rhs: NonZero<Self::Unsigned>) -> Self::Unsigned {
-                $ty::rem_euclid_unsigned(self, rhs)
-            }
-            fn truncate<T: PrimInt + Into<Self>>(self) -> T {
-                match size_of::<T>() {
-                    1 => unsafe { transmute_copy(&(self as u8)) },
-                    2 => unsafe { transmute_copy(&(self as u16)) },
-                    4 => unsafe { transmute_copy(&(self as u32)) },
-                    8 => unsafe { transmute_copy(&(self as u64)) },
-                    16 => unsafe { transmute_copy(&(self as u128)) },
-                    _ => unreachable!(),
-                }
-            }
-            fn nonzero_from<T: PrimInt + Into<Self>>(val: T::NonZero) -> Self::NonZero {
-                let val: T = val.into();
-                let val: Self = val.into();
-                unsafe { NonZero::new_unchecked(val) }
-            }
-        }
     )* };
 }
-use gen_impl;
+use generate;
+
+// We don’t implement for `usize` because we don’t get `(wide usize): From<usize>` impls which
+// makes things difficult trait-wise.
+pub trait HasWide {
+    type Wide;
+}
+
+pub type Wide<T> = <T as HasWide>::Wide;
+
+impl HasWide for u8 {
+    type Wide = u16;
+}
+impl HasWide for u16 {
+    type Wide = u32;
+}
+impl HasWide for u32 {
+    type Wide = u64;
+}
+impl HasWide for u64 {
+    type Wide = u128;
+}
+impl HasWide for i8 {
+    type Wide = i16;
+}
+impl HasWide for i16 {
+    type Wide = i32;
+}
+impl HasWide for i32 {
+    type Wide = i64;
+}
+impl HasWide for i64 {
+    type Wide = i128;
+}

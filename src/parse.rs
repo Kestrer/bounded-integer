@@ -2,22 +2,20 @@ use core::fmt::{self, Display, Formatter};
 #[cfg(feature = "std")]
 use std::error::Error;
 
-#[cfg_attr(not(any(feature = "types", feature = "macro")), expect(unused))]
-pub trait FromStrRadix: Sized {
-    fn from_str_radix(s: &str, radix: u32) -> Result<Self, ParseError>;
-}
-
 macro_rules! from_str_radix_impl {
     ($($ty:ident)*) => { $(
-        impl FromStrRadix for $ty {
-            fn from_str_radix(src: &str, radix: u32) -> Result<Self, ParseError> {
+        impl $crate::__private::Dispatch<$ty> {
+            // Implement it ourselves (copying the implementation from std) because `IntErrorKind`
+            // is non-exhaustive.
+            pub const fn from_ascii_radix(src: &[u8], radix: u32) -> Result<$ty, ParseError> {
                 assert!(
-                    (2..=36).contains(&radix),
-                    "from_str_radix: radix must lie in the range `[2, 36]` - found {}",
-                    radix,
+                    2 <= radix && radix <= 36,
+                    "from_str_radix: radix must lie in the range `[2, 36]`",
                 );
 
-                let src = src.as_bytes();
+                macro_rules! yeet {
+                    ($e:expr) => { return Err(ParseError { kind: $e }) };
+                }
 
                 let (positive, digits) = match *src {
                     [b'+', ref digits @ ..] => (true, digits),
@@ -26,9 +24,7 @@ macro_rules! from_str_radix_impl {
                 };
 
                 if digits.is_empty() {
-                    return Err(ParseError {
-                        kind: ParseErrorKind::NoDigits,
-                    });
+                    yeet!(ParseErrorKind::NoDigits);
                 }
 
                 let overflow_kind = if positive {
@@ -37,30 +33,31 @@ macro_rules! from_str_radix_impl {
                     ParseErrorKind::BelowMin
                 };
 
-                let mut result: Self = 0;
+                let mut result: $ty = 0;
 
-                for &digit in digits {
-                    let digit_value =
-                        char::from(digit)
-                            .to_digit(radix)
-                            .ok_or_else(|| ParseError {
-                                kind: ParseErrorKind::InvalidDigit,
-                            })?;
+                let mut i = 0;
+                while i < digits.len() {
+                    let digit = digits[i];
 
-                    result = result
-                        .checked_mul(radix as Self)
-                        .ok_or_else(|| ParseError {
-                            kind: overflow_kind,
-                        })?;
+                    let Some(digit_value) = (digit as char).to_digit(radix) else {
+                        yeet!(ParseErrorKind::InvalidDigit);
+                    };
 
-                    result = if positive {
-                        result.checked_add(digit_value as Self)
+                    let Some(new_result) = result.checked_mul(radix as $ty) else {
+                        yeet!(overflow_kind);
+                    };
+
+                    let Some(new_result) = (if positive {
+                        new_result.checked_add(digit_value as $ty)
                     } else {
-                        result.checked_sub(digit_value as Self)
-                    }
-                    .ok_or_else(|| ParseError {
-                        kind: overflow_kind,
-                    })?;
+                        new_result.checked_sub(digit_value as $ty)
+                    }) else {
+                        yeet!(overflow_kind);
+                    };
+
+                    result = new_result;
+
+                    i += 1;
                 }
 
                 Ok(result)
@@ -100,7 +97,6 @@ impl Display for ParseError {
 }
 
 #[cfg(feature = "std")]
-#[cfg_attr(doc_cfg, doc(cfg(feature = "std")))]
 impl Error for ParseError {}
 
 /// The cause of the failure to parse the integer.
@@ -123,14 +119,12 @@ pub enum ParseErrorKind {
     BelowMin,
 }
 
-#[cfg_attr(not(any(feature = "types", feature = "macro")), expect(unused))]
-pub fn error_below_min() -> ParseError {
+pub const fn error_below_min() -> ParseError {
     ParseError {
         kind: ParseErrorKind::BelowMin,
     }
 }
-#[cfg_attr(not(any(feature = "types", feature = "macro")), expect(unused))]
-pub fn error_above_max() -> ParseError {
+pub const fn error_above_max() -> ParseError {
     ParseError {
         kind: ParseErrorKind::AboveMax,
     }

@@ -6,7 +6,7 @@ keywords = ["bounded", "integer", "macro", "refinement"]
 license = "ISC"
 repository = "https://github.com/Kestrer/bounded-integer"
 readme = "README.md"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 bounded-integer-macro = { path = "./macro", version = "=0.5.8", optional = true }
@@ -21,21 +21,23 @@ zerocopy = { version = "0.8.14", features = ["derive"], optional = true }
 std = ["alloc"]
 alloc = []
 
-types = []
-
 macro = ["bounded-integer-macro"]
-__examples = ["macro", "bounded-integer-macro/generate_tests"]
 
 step_trait = []
 
-serde = ["serde1"]
+# `__doc` is set when building the crate locally, but users should not set it.
+# There are a few reasons we use it instead of `cfg(doc)`:
+# + The examples are gated based on this feature, and we want them to typecheck.
+# + When it is enabled, we adjust the internals of the crate in a way that makes its macros unusable
+#   outside the crate. This improves documentation, but should not be done only when `cfg(doc)` is
+#   set.
+__doc = ["macro"]
+
+[dev-dependencies]
+trybuild = "1.0.110"
 
 [package.metadata.docs.rs]
 all-features = true
-rustdoc-args = ["--cfg", "doc_cfg"]
-
-[lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(doc_cfg)'] }
 
 [workspace]
 members = ["macro"]

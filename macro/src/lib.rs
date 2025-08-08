@@ -3,567 +3,449 @@
 //! This crate is unstable and must not be used directly.
 #![warn(clippy::pedantic, rust_2018_idioms, unused_qualifications)]
 #![allow(clippy::single_match_else, clippy::match_bool)]
-#![allow(unused)]
 
-use std::borrow::Borrow;
-use std::cmp;
-use std::convert::TryInto;
-use std::fmt::{self, Display, Formatter};
-use std::ops::RangeInclusive;
+use std::array;
+use std::fmt::Debug;
 
-use proc_macro2::{Group, Ident, Literal, Span, TokenStream};
-use quote::{quote, ToTokens, TokenStreamExt as _};
-use syn::parse::{self, Parse, ParseStream};
-use syn::{braced, parse_macro_input, token::Brace, Token};
-use syn::{Attribute, Error, Expr, PathArguments, PathSegment, Visibility};
-use syn::{BinOp, ExprBinary, ExprRange, ExprUnary, RangeLimits, UnOp};
-use syn::{ExprGroup, ExprParen};
-use syn::{ExprLit, Lit, LitBool};
-
-use num_bigint::{BigInt, Sign, TryFromBigIntError};
-
-mod generate;
+use proc_macro2::{Delimiter, Ident, Literal, Span, TokenStream, TokenTree};
+use quote::{ToTokens, quote, quote_spanned};
 
 #[proc_macro]
 #[doc(hidden)]
+#[expect(clippy::too_many_lines)]
 pub fn bounded_integer(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let mut item = parse_macro_input!(input as BoundedInteger);
+    let input = TokenStream::from(input).into_iter().map(|t| {
+        let TokenTree::Group(group) = t else {
+            panic!("non-group in input")
+        };
+        assert_eq!(group.delimiter(), Delimiter::Bracket);
+        group.stream()
+    });
+    let [
+        zerocopy,
+        mut attrs,
+        vis,
+        super_vis,
+        is_named,
+        item_kind,
+        name,
+        min_or_variants,
+        max_or_none,
+        crate_path,
+    ] = to_array(input);
+
+    let zerocopy = match to_array(zerocopy) {
+        [TokenTree::Punct(p)] if p.as_char() == '-' => false,
+        [TokenTree::Punct(p)] if p.as_char() == '+' => true,
+        [t] => panic!("zerocopy ({t})"),
+    };
+
+    let [TokenTree::Ident(item_kind)] = to_array(item_kind) else {
+        panic!("item kind")
+    };
+    let is_enum = match &*item_kind.to_string() {
+        "struct" => false,
+        "enum" => true,
+        s => panic!("unknown item kind {s}"),
+    };
+    let [TokenTree::Ident(name)] = to_array(name) else {
+        panic!("name")
+    };
+
+    let mut new_attrs = TokenStream::new();
+    let mut maybe_repr = None;
+    for attr in attrs {
+        let TokenTree::Group(group) = &attr else {
+            panic!("attr ({attr})")
+        };
+        let mut iter = group.stream().into_iter();
+        if let [Some(TokenTree::Ident(i)), Some(TokenTree::Group(g)), None] =
+            [iter.next(), iter.next(), iter.next()]
+            && i == "repr"
+            && g.delimiter() == Delimiter::Parenthesis
+        {
+            if maybe_repr.is_some() {
+                return error!(i.span(), "duplicate `repr` attribute");
+            }
+            maybe_repr = Some(g.stream());
+            continue;
+        }
+        new_attrs.extend(quote!(# #attr));
+    }
+    attrs = new_attrs;
+
+    let (variants, min, max, min_val, max_val);
+    match to_array(is_named) {
+        // Unnamed
+        [TokenTree::Punct(p)] if p.as_char() == '-' => {
+            [min, max] = [min_or_variants, max_or_none].map(ungroup_none);
+            [min_val, max_val] = [&min, &max].map(|lit| {
+                parse_literal(lit.clone()).map(|(lit, repr)| {
+                    // if there is an existing repr, Rust will cause an error anyway later on
+                    if let Some(repr) = repr
+                        && maybe_repr.is_none()
+                    {
+                        maybe_repr = Some(quote!(#repr));
+                    }
+                    lit
+                })
+            });
+
+            variants = match is_enum {
+                false => None,
+                true => {
+                    let Some(min_val) = min_val else {
+                        return error!(min, "`enum` requires bound to be statically known");
+                    };
+                    let Some(max_val) = max_val else {
+                        return error!(max, "`enum` requires bound to be statically known");
+                    };
+                    let Some(range) = range(min_val, max_val) else {
+                        return error!(min, "refusing to generate this many `enum` variants");
+                    };
+                    let mut variants = TokenStream::new();
+                    let min_span = stream_span(min.clone());
+                    for int in range {
+                        let enum_variant_name = int.enum_variant_name(min_span);
+                        if int == min_val {
+                            variants.extend(quote!(#[allow(dead_code)] #enum_variant_name = #min,));
+                        } else {
+                            variants.extend(quote!(#[allow(dead_code)] #enum_variant_name,));
+                        }
+                    }
+                    Some(variants)
+                }
+            };
+        }
+        // Named
+        [TokenTree::Punct(p)] if p.as_char() == '+' => {
+            assert!(is_enum);
+            assert!(max_or_none.into_iter().next().is_none());
+
+            // ((min_val, min), current_val, current_span)
+            let mut min_current = None::<((Int, TokenStream), Int, Span)>;
+            let mut variant_list = TokenStream::new();
+            for variant in min_or_variants {
+                let TokenTree::Group(variant) = variant else {
+                    panic!("variant")
+                };
+                let [
+                    TokenTree::Group(attrs),
+                    TokenTree::Ident(variant_name),
+                    TokenTree::Group(variant_val),
+                ] = to_array(variant.stream())
+                else {
+                    panic!("variant inner")
+                };
+                let attrs = attrs.stream();
+                let variant_val = variant_val.stream();
+                min_current = Some(if variant_val.is_empty() {
+                    variant_list.extend(quote!(#attrs #variant_name,));
+                    match min_current {
+                        Some((min, current, current_span)) => match current.succ() {
+                            Some(current) => (min, current, current_span),
+                            None => {
+                                return error!(
+                                    variant_name.span(),
+                                    "too many variants (overflows a u128)"
+                                );
+                            }
+                        },
+                        None => (
+                            (Int::new(true, 0), quote_spanned!(variant_name.span()=> 0)),
+                            Int::new(true, 0),
+                            variant_name.span(),
+                        ),
+                    }
+                } else {
+                    variant_list.extend(quote!(#attrs #variant_name = #variant_val,));
+                    let variant_val = ungroup_none(variant_val);
+                    let Some((int, _)) = parse_literal(variant_val.clone()) else {
+                        return error!(variant_val, "could not parse variant value");
+                    };
+                    match min_current {
+                        Some((min, current, _)) if current.succ() == Some(int) => {
+                            (min, int, stream_span(variant_val))
+                        }
+                        Some(_) => return error!(variant_val, "enum not contiguous"),
+                        None => ((int, variant_val.clone()), int, stream_span(variant_val)),
+                    }
+                });
+            }
+            variants = Some(variant_list);
+            [(min_val, min), (max_val, max)] = match min_current {
+                Some(((min_val, min), current, current_span)) => [
+                    (Some(min_val), min),
+                    (Some(current), current.literal(current_span)),
+                ],
+                None => [
+                    (Some(Int::new(true, 1)), quote!(1)),
+                    (Some(Int::new(true, 0)), quote!(0)),
+                ],
+            };
+        }
+        [t] => panic!("named ({t})"),
+    }
+
+    let zeroable = min_val
+        .zip(max_val)
+        .map(|(min, max)| (min..=max).contains(&Int::new(true, 0)));
+    if zeroable == Some(true) && zerocopy {
+        attrs.extend(quote!(#[derive(#crate_path::__private::zerocopy::FromZeros)]));
+    }
+    let zeroable_token = match zeroable {
+        Some(true) => quote!(zeroable,),
+        Some(false) | None => quote!(),
+    };
+
+    let repr = match (maybe_repr, min_val, max_val) {
+        (Some(repr), _, _) => repr,
+        (None, Some(min_val), Some(max_val)) => match infer_repr(min_val, max_val) {
+            Some(repr) => {
+                let repr = Ident::new(&repr, stream_span(min.clone()));
+                quote!(#repr)
+            }
+            None => return error!(min, "range too large for any integer type"),
+        },
+        (None, _, _) => {
+            let msg = "no #[repr] attribute found, and could not infer";
+            return error!(min, "{msg}");
+        }
+    };
+
+    match is_enum {
+        false => attrs.extend(quote!(#[repr(transparent)])),
+        true => attrs.extend(quote!(#[repr(#repr)])),
+    }
+
+    if matches!(repr.to_string().trim(), "u8" | "i8") && zerocopy {
+        attrs.extend(quote!(#[derive(#crate_path::__private::zerocopy::Unaligned)]));
+    }
+
+    let item = match variants {
+        Some(variants) => quote!({ #variants }),
+        None if zeroable == Some(false) => quote!((::core::num::NonZero<#repr>);),
+        None => quote!((#repr);),
+    };
 
     // Hide in a module to prevent access to private parts.
-    let module_name = Ident::new(
-        &format!("__bounded_integer_private_{}", item.ident),
-        item.ident.span(),
-    );
-    let ident = &item.ident;
-    let original_visibility = item.vis;
+    let module_name = Ident::new(&format!("__bounded_integer_private_{name}"), name.span());
 
-    let import = quote!(#original_visibility use #module_name::#ident);
-
-    item.vis = raise_one_level(original_visibility);
-    let mut result = TokenStream::new();
-    generate::generate(&item, &mut result);
-
-    quote!(
+    let res = quote!(
         #[allow(non_snake_case)]
         mod #module_name {
-            #result
-        }
-        #import;
-    )
-    .into()
-}
+            #attrs
+            #super_vis #item_kind #name #item
 
-#[allow(clippy::struct_excessive_bools)]
-struct BoundedInteger {
-    // $crate
-    crate_path: TokenStream,
-
-    // Optional features
-    alloc: bool,
-    arbitrary1: bool,
-    bytemuck1: bool,
-    serde1: bool,
-    std: bool,
-    zerocopy: bool,
-    step_trait: bool,
-
-    // The item itself
-    attrs: Vec<Attribute>,
-    repr: Repr,
-    vis: Visibility,
-    kind: Kind,
-    ident: Ident,
-    brace_token: Brace,
-    range: RangeInclusive<BigInt>,
-}
-
-impl Parse for BoundedInteger {
-    fn parse(input: ParseStream<'_>) -> parse::Result<Self> {
-        let crate_path = input.parse::<Group>()?.stream();
-
-        let alloc = input.parse::<LitBool>()?.value;
-        let arbitrary1 = input.parse::<LitBool>()?.value;
-        let bytemuck1 = input.parse::<LitBool>()?.value;
-        let serde1 = input.parse::<LitBool>()?.value;
-        let std = input.parse::<LitBool>()?.value;
-        let zerocopy = input.parse::<LitBool>()?.value;
-        let step_trait = input.parse::<LitBool>()?.value;
-
-        let mut attrs = input.call(Attribute::parse_outer)?;
-
-        let repr_pos = attrs.iter().position(|attr| attr.path().is_ident("repr"));
-        let repr = repr_pos
-            .map(|pos| attrs.remove(pos).parse_args::<Repr>())
-            .transpose()?;
-
-        let vis: Visibility = input.parse()?;
-
-        let kind: Kind = input.parse()?;
-
-        let ident: Ident = input.parse()?;
-
-        let range_tokens;
-        let brace_token = braced!(range_tokens in input);
-        let range: ExprRange = range_tokens.parse()?;
-
-        let Some((start_expr, end_expr)) = range.start.as_deref().zip(range.end.as_deref()) else {
-            return Err(Error::new_spanned(range, "Range must be closed"));
-        };
-        let start = eval_expr(start_expr)?;
-        let end = eval_expr(end_expr)?;
-        let end = if let RangeLimits::HalfOpen(_) = range.limits {
-            end - 1
-        } else {
-            end
-        };
-        if start >= end {
-            return Err(Error::new_spanned(
-                range,
-                "The start of the range must be before the end",
-            ));
-        }
-
-        let repr = match repr {
-            Some(explicit_repr) => {
-                if explicit_repr.sign == Unsigned && start.sign() == Sign::Minus {
-                    return Err(Error::new_spanned(
-                        start_expr,
-                        "An unsigned integer cannot hold a negative value",
-                    ));
-                }
-
-                if explicit_repr.minimum().is_some_and(|min| start < min) {
-                    return Err(Error::new_spanned(
-                        start_expr,
-                        format_args!(
-                            "Bound {start} is below the minimum value for the underlying type",
-                        ),
-                    ));
-                }
-                if explicit_repr.maximum().is_some_and(|max| end > max) {
-                    return Err(Error::new_spanned(
-                        end_expr,
-                        format_args!(
-                            "Bound {end} is above the maximum value for the underlying type",
-                        ),
-                    ));
-                }
-
-                explicit_repr
+            #crate_path::unsafe_api! {
+                for #name,
+                unsafe repr: #repr,
+                min: #min,
+                max: #max,
+                #zeroable_token
             }
-            None => Repr::smallest_repr(&start, &end).ok_or_else(|| {
-                Error::new_spanned(range, "Range is too wide to fit in any integer primitive")
-            })?,
-        };
+        }
+        #vis use #module_name::#name;
+    );
 
-        Ok(Self {
-            crate_path,
-            alloc,
-            arbitrary1,
-            bytemuck1,
-            serde1,
-            std,
-            zerocopy,
-            step_trait,
-            attrs,
-            repr,
-            vis,
-            kind,
-            ident,
-            brace_token,
-            range: start..=end,
-        })
+    res.into()
+}
+
+fn to_array<I: IntoIterator<Item: Debug>, const N: usize>(iter: I) -> [I::Item; N] {
+    let mut iter = iter.into_iter();
+    let array = array::from_fn(|_| iter.next().expect("iterator too short"));
+    if let Some(item) = iter.next() {
+        panic!("iterator too long: found {item:?}");
     }
+    array
 }
 
-enum Kind {
-    Struct(Token![struct]),
-    Enum(Token![enum]),
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Int {
+    nonnegative: bool,
+    magnitude: u128,
 }
 
-impl Parse for Kind {
-    fn parse(input: ParseStream<'_>) -> parse::Result<Self> {
-        Ok(if input.peek(Token![struct]) {
-            Self::Struct(input.parse()?)
-        } else {
-            Self::Enum(input.parse()?)
-        })
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum ReprSign {
-    Signed,
-    Unsigned,
-}
-use ReprSign::{Signed, Unsigned};
-
-struct Repr {
-    sign: ReprSign,
-    size: ReprSize,
-    name: Ident,
-}
-
-impl Repr {
-    fn new(sign: ReprSign, size: ReprSize) -> Self {
-        let prefix = match sign {
-            Signed => 'i',
-            Unsigned => 'u',
-        };
+impl Int {
+    fn new(nonnegative: bool, magnitude: u128) -> Self {
         Self {
-            sign,
-            size,
-            name: Ident::new(&format!("{prefix}{size}"), Span::call_site()),
+            nonnegative,
+            magnitude,
         }
     }
-
-    fn smallest_repr(min: &BigInt, max: &BigInt) -> Option<Self> {
-        // NOTE: Never infer nonzero types, even if we can.
-        Some(if min.sign() == Sign::Minus {
-            Self::new(
-                Signed,
-                ReprSize::Fixed(cmp::max(
-                    ReprSizeFixed::from_bits((min + 1_u8).bits() + 1)?,
-                    ReprSizeFixed::from_bits(max.bits() + 1)?,
-                )),
-            )
+    fn succ(self) -> Option<Self> {
+        Some(match self.nonnegative {
+            true => Self::new(true, self.magnitude.checked_add(1)?),
+            false if self.magnitude == 1 => Self::new(true, 0),
+            false => Self::new(false, self.magnitude - 1),
+        })
+    }
+    fn enum_variant_name(self, span: Span) -> Ident {
+        if self.magnitude == 0 {
+            Ident::new("Z", span)
+        } else if self.nonnegative {
+            Ident::new(&format!("P{}", self.magnitude), span)
         } else {
-            Self::new(
-                Unsigned,
-                ReprSize::Fixed(ReprSizeFixed::from_bits(max.bits())?),
-            )
-        })
-    }
-
-    fn minimum(&self) -> Option<BigInt> {
-        Some(match (self.sign, self.size) {
-            (Unsigned, ReprSize::Fixed(_)) => BigInt::from(0u8),
-            (Signed, ReprSize::Fixed(size)) => -(BigInt::from(1u8) << (size.to_bits() - 1)),
-            (_, ReprSize::Pointer) => return None,
-        })
-    }
-
-    fn maximum(&self) -> Option<BigInt> {
-        Some(match (self.sign, self.size) {
-            (Unsigned, ReprSize::Fixed(size)) => (BigInt::from(1u8) << size.to_bits()) - 1,
-            (Signed, ReprSize::Fixed(size)) => (BigInt::from(1u8) << (size.to_bits() - 1)) - 1,
-            (_, ReprSize::Pointer) => return None,
-        })
-    }
-
-    fn try_number_literal(
-        &self,
-        value: impl Borrow<BigInt>,
-    ) -> Result<Literal, TryFromBigIntError<()>> {
-        macro_rules! match_repr {
-            ($($sign:ident $size:ident $(($fixed:ident))? => $f:ident,)*) => {
-                match (self.sign, self.size) {
-                    $(($sign, ReprSize::$size $((ReprSizeFixed::$fixed))?) => {
-                        Ok(Literal::$f(value.borrow().try_into()?))
-                    })*
-                }
-            }
-        }
-
-        match_repr! {
-            Unsigned Fixed(Fixed8) => u8_suffixed,
-            Unsigned Fixed(Fixed16) => u16_suffixed,
-            Unsigned Fixed(Fixed32) => u32_suffixed,
-            Unsigned Fixed(Fixed64) => u64_suffixed,
-            Unsigned Fixed(Fixed128) => u128_suffixed,
-            Unsigned Pointer => usize_suffixed,
-            Signed Fixed(Fixed8) => i8_suffixed,
-            Signed Fixed(Fixed16) => i16_suffixed,
-            Signed Fixed(Fixed32) => i32_suffixed,
-            Signed Fixed(Fixed64) => i64_suffixed,
-            Signed Fixed(Fixed128) => i128_suffixed,
-            Signed Pointer => isize_suffixed,
+            Ident::new(&format!("N{}", self.magnitude), span)
         }
     }
-
-    fn number_literal(&self, value: impl Borrow<BigInt>) -> Literal {
-        self.try_number_literal(value).unwrap()
-    }
-
-    fn larger_reprs(&self) -> impl Iterator<Item = Self> {
-        match self.sign {
-            Signed => Either::A(self.size.larger_reprs().map(|size| Self::new(Signed, size))),
-            Unsigned => Either::B(
-                self.size
-                    .larger_reprs()
-                    .map(|size| Self::new(Unsigned, size))
-                    .chain(
-                        self.size
-                            .larger_reprs()
-                            .skip(1)
-                            .map(|size| Self::new(Signed, size)),
-                    ),
-            ),
+    fn literal(self, span: Span) -> TokenStream {
+        let mut magnitude = Literal::u128_unsuffixed(self.magnitude);
+        magnitude.set_span(span);
+        match self.nonnegative {
+            true => quote!(#magnitude),
+            false => quote!(-#magnitude),
         }
-    }
-
-    fn is_usize(&self) -> bool {
-        matches!((self.sign, self.size), (Unsigned, ReprSize::Pointer))
     }
 }
 
-impl Parse for Repr {
-    fn parse(input: ParseStream<'_>) -> parse::Result<Self> {
-        let name = input.parse::<Ident>()?;
-        let span = name.span();
-        let s = name.to_string();
+impl PartialOrd for Int {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
 
-        let (size, sign) = if let Some(size) = s.strip_prefix('i') {
-            (size, Signed)
-        } else if let Some(size) = s.strip_prefix('u') {
-            (size, Unsigned)
-        } else {
-            return Err(Error::new(span, "Repr must a primitive integer type"));
+impl Ord for Int {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self.nonnegative, other.nonnegative) {
+            (true, true) => self.magnitude.cmp(&other.magnitude),
+            (true, false) => std::cmp::Ordering::Greater,
+            (false, true) => std::cmp::Ordering::Less,
+            (false, false) => other.magnitude.cmp(&self.magnitude),
+        }
+    }
+}
+
+fn parse_literal(e: TokenStream) -> Option<(Int, Option<Ident>)> {
+    let mut tokens = e.into_iter().peekable();
+    let minus = tokens
+        .next_if(|t| matches!(t, TokenTree::Punct(p) if p.as_char() == '-'))
+        .is_some();
+    let Some(TokenTree::Literal(lit)) = tokens.next() else {
+        return None;
+    };
+    if tokens.next().is_some() {
+        return None;
+    }
+
+    // Algorithm reference:
+    // https://docs.rs/syn/2.0.104/src/syn/lit.rs.html#1679-1767
+
+    let mut lit_chars = &*lit.to_string();
+
+    let (base, base_len) = match lit_chars.get(..2) {
+        Some("0x") => (16, 2),
+        Some("0o") => (8, 2),
+        Some("0b") => (2, 2),
+        _ => (10, 0),
+    };
+    lit_chars = &lit_chars[base_len..];
+
+    let mut magnitude = 0_u128;
+    let mut has_digit = None;
+
+    let suffix = loop {
+        lit_chars = lit_chars.trim_start_matches('_');
+        let Some(c) = lit_chars.chars().next() else {
+            has_digit?;
+            break None;
         };
-
-        let size = match size {
-            "8" => ReprSize::Fixed(ReprSizeFixed::Fixed8),
-            "16" => ReprSize::Fixed(ReprSizeFixed::Fixed16),
-            "32" => ReprSize::Fixed(ReprSizeFixed::Fixed32),
-            "64" => ReprSize::Fixed(ReprSizeFixed::Fixed64),
-            "128" => ReprSize::Fixed(ReprSizeFixed::Fixed128),
-            "size" => ReprSize::Pointer,
-            unknown => {
-                return Err(Error::new(
-                    span,
-                    format_args!(
-                        "Unknown integer size {unknown}, must be one of 8, 16, 32, 64, 128 or size",
-                    ),
-                ));
-            }
-        };
-
-        Ok(Self { sign, size, name })
-    }
-}
-
-impl ToTokens for Repr {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        tokens.append(self.name.clone());
-    }
-}
-
-#[derive(Clone, Copy)]
-enum ReprSize {
-    Fixed(ReprSizeFixed),
-
-    /// `usize`/`isize`
-    Pointer,
-}
-
-impl ReprSize {
-    fn larger_reprs(self) -> impl Iterator<Item = Self> {
-        match self {
-            Self::Fixed(fixed) => Either::A(fixed.larger_reprs().map(Self::Fixed)),
-            Self::Pointer => Either::B(std::iter::once(Self::Pointer)),
-        }
-    }
-}
-
-impl Display for ReprSize {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Fixed(fixed) => fixed.fmt(f),
-            Self::Pointer => f.write_str("size"),
-        }
-    }
-}
-
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
-enum ReprSizeFixed {
-    Fixed8,
-    Fixed16,
-    Fixed32,
-    Fixed64,
-    Fixed128,
-}
-
-impl ReprSizeFixed {
-    fn to_bits(self) -> u64 {
-        match self {
-            ReprSizeFixed::Fixed8 => 8,
-            ReprSizeFixed::Fixed16 => 16,
-            ReprSizeFixed::Fixed32 => 32,
-            ReprSizeFixed::Fixed64 => 64,
-            ReprSizeFixed::Fixed128 => 128,
-        }
-    }
-
-    fn from_bits(bits: u64) -> Option<Self> {
-        Some(match bits {
-            0..=8 => Self::Fixed8,
-            9..=16 => Self::Fixed16,
-            17..=32 => Self::Fixed32,
-            33..=64 => Self::Fixed64,
-            65..=128 => Self::Fixed128,
-            129..=u64::MAX => return None,
-        })
-    }
-
-    fn larger_reprs(self) -> impl Iterator<Item = Self> {
-        const REPRS: [ReprSizeFixed; 5] = [
-            ReprSizeFixed::Fixed8,
-            ReprSizeFixed::Fixed16,
-            ReprSizeFixed::Fixed32,
-            ReprSizeFixed::Fixed64,
-            ReprSizeFixed::Fixed128,
-        ];
-        let index = match self {
-            Self::Fixed8 => 0,
-            Self::Fixed16 => 1,
-            Self::Fixed32 => 2,
-            Self::Fixed64 => 3,
-            Self::Fixed128 => 4,
-        };
-        REPRS[index..].iter().copied()
-    }
-}
-
-impl Display for ReprSizeFixed {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Fixed8 => "8",
-            Self::Fixed16 => "16",
-            Self::Fixed32 => "32",
-            Self::Fixed64 => "64",
-            Self::Fixed128 => "128",
-        })
-    }
-}
-
-fn eval_expr(expr: &Expr) -> syn::Result<BigInt> {
-    Ok(match expr {
-        Expr::Lit(ExprLit { lit, .. }) => match lit {
-            Lit::Byte(byte) => byte.value().into(),
-            Lit::Int(int) => int.base10_parse()?,
-            _ => {
-                return Err(Error::new_spanned(lit, "literal must be integer"));
-            }
-        },
-        Expr::Unary(ExprUnary { op, expr, .. }) => {
-            let expr = eval_expr(expr)?;
-            match op {
-                UnOp::Not(_) => !expr,
-                UnOp::Neg(_) => -expr,
-                _ => return Err(Error::new_spanned(op, "unary operator must be ! or -")),
-            }
-        }
-        Expr::Binary(ExprBinary {
-            left, op, right, ..
-        }) => {
-            let left = eval_expr(left)?;
-            let right = eval_expr(right)?;
-            match op {
-                BinOp::Add(_) => left + right,
-                BinOp::Sub(_) => left - right,
-                BinOp::Mul(_) => left * right,
-                BinOp::Div(_) => left
-                    .checked_div(&right)
-                    .ok_or_else(|| Error::new_spanned(op, "Attempted to divide by zero"))?,
-                BinOp::Rem(_) => left % right,
-                BinOp::BitXor(_) => left ^ right,
-                BinOp::BitAnd(_) => left & right,
-                BinOp::BitOr(_) => left | right,
-                _ => {
-                    return Err(Error::new_spanned(
-                        op,
-                        "operator not supported in this context",
-                    ));
-                }
-            }
-        }
-        Expr::Group(ExprGroup { expr, .. }) | Expr::Paren(ExprParen { expr, .. }) => {
-            eval_expr(expr)?
-        }
-        _ => return Err(Error::new_spanned(expr, "expected simple expression")),
-    })
-}
-
-/// Raise a visibility one level.
-///
-/// ```text
-/// no visibility -> pub(super)
-/// pub(self) -> pub(super)
-/// pub(in self) -> pub(in super)
-/// pub(in self::some::path) -> pub(in super::some::path)
-/// pub(super) -> pub(in super::super)
-/// pub(in super) -> pub(in super::super)
-/// pub(in super::some::path) -> pub(in super::super::some::path)
-/// ```
-fn raise_one_level(vis: Visibility) -> Visibility {
-    match vis {
-        Visibility::Inherited => syn::parse2(quote!(pub(super))).unwrap(),
-        Visibility::Restricted(mut restricted)
-            if restricted.path.segments.first().unwrap().ident == "self" =>
-        {
-            let first = &mut restricted.path.segments.first_mut().unwrap().ident;
-            *first = Ident::new("super", first.span());
-            Visibility::Restricted(restricted)
-        }
-        Visibility::Restricted(mut restricted)
-            if restricted.path.segments.first().unwrap().ident == "super" =>
-        {
-            restricted
-                .in_token
-                .get_or_insert_with(<Token![in]>::default);
-            let first = PathSegment {
-                ident: restricted.path.segments.first().unwrap().ident.clone(),
-                arguments: PathArguments::None,
+        if let 'i' | 'u' = c {
+            let ("8" | "16" | "32" | "64" | "128" | "size") = &lit_chars[1..] else {
+                return None;
             };
-            restricted.path.segments.insert(0, first);
-            Visibility::Restricted(restricted)
+            break Some(Ident::new(lit_chars, lit.span()));
         }
-        absolute_visibility => absolute_visibility,
+        let digit = c.to_digit(base)?;
+        lit_chars = &lit_chars[1..];
+        magnitude = magnitude
+            .checked_mul(base.into())?
+            .checked_add(digit.into())?;
+        has_digit = Some(());
+    };
+
+    let lit = Int::new(!minus || magnitude == 0, magnitude);
+    Some((lit, suffix))
+}
+
+fn range(min: Int, max: Int) -> Option<impl Iterator<Item = Int>> {
+    let range_minus_one = match (max.nonnegative, min.nonnegative) {
+        (true, true) => max.magnitude.saturating_sub(min.magnitude),
+        (true, false) => max.magnitude.saturating_add(min.magnitude),
+        (false, true) => 0,
+        (false, false) => min.magnitude.saturating_sub(max.magnitude),
+    };
+    if 100_000 <= range_minus_one {
+        return None;
     }
+    #[expect(clippy::reversed_empty_ranges)]
+    let (negative_part, nonnegative_part) = match (min.nonnegative, max.nonnegative) {
+        (true, true) => (1..=0, min.magnitude..=max.magnitude),
+        (false, true) => (1..=min.magnitude, 0..=max.magnitude),
+        (true, false) => (1..=0, 1..=0),
+        (false, false) => (max.magnitude..=min.magnitude, 1..=0),
+    };
+    let negative_part = negative_part.map(|i| Int::new(false, i));
+    let nonnegative_part = nonnegative_part.map(|i| Int::new(true, i));
+    Some(negative_part.rev().chain(nonnegative_part))
 }
 
-#[test]
-fn test_raise_one_level() {
-    #[track_caller]
-    fn assert_output(input: TokenStream, output: TokenStream) {
-        let tokens = raise_one_level(syn::parse2(input).unwrap()).into_token_stream();
-        assert_eq!(tokens.to_string(), output.to_string());
-        drop(output);
-    }
-
-    assert_output(TokenStream::new(), quote!(pub(super)));
-    assert_output(quote!(pub(self)), quote!(pub(super)));
-    assert_output(quote!(pub(in self)), quote!(pub(in super)));
-    assert_output(
-        quote!(pub(in self::some::path)),
-        quote!(pub(in super::some::path)),
-    );
-    assert_output(quote!(pub(super)), quote!(pub(in super::super)));
-    assert_output(quote!(pub(in super)), quote!(pub(in super::super)));
-    assert_output(
-        quote!(pub(in super::some::path)),
-        quote!(pub(in super::super::some::path)),
-    );
-
-    assert_output(quote!(pub), quote!(pub));
-    assert_output(quote!(pub(crate)), quote!(pub(crate)));
-    assert_output(quote!(pub(in crate)), quote!(pub(in crate)));
-    assert_output(
-        quote!(pub(in crate::some::path)),
-        quote!(pub(in crate::some::path)),
-    );
-}
-
-enum Either<A, B> {
-    A(A),
-    B(B),
-}
-impl<T, A: Iterator<Item = T>, B: Iterator<Item = T>> Iterator for Either<A, B> {
-    type Item = T;
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            Self::A(a) => a.next(),
-            Self::B(b) => b.next(),
+fn infer_repr(min: Int, max: Int) -> Option<String> {
+    for bits in [8, 16, 32, 64, 128] {
+        let fits_unsigned =
+            |lit: Int| lit.nonnegative && lit.magnitude <= (u128::MAX >> (128 - bits));
+        let fits_signed = |lit: Int| {
+            (lit.nonnegative && lit.magnitude < (1 << (bits - 1)))
+                || (!lit.nonnegative && lit.magnitude <= (1 << (bits - 1)))
+        };
+        if fits_unsigned(min) && fits_unsigned(max) {
+            return Some(format!("u{bits}"));
+        } else if fits_signed(min) && fits_signed(max) {
+            return Some(format!("i{bits}"));
         }
     }
+    None
+}
+
+fn ungroup_none(tokens: TokenStream) -> TokenStream {
+    let mut tokens = tokens.into_iter().peekable();
+    if let Some(TokenTree::Group(g)) =
+        tokens.next_if(|t| matches!(t, TokenTree::Group(g) if g.delimiter() == Delimiter::None))
+    {
+        return g.stream();
+    }
+    // Sigh… make it opportunistic to get it to work on rust-analyzer
+    // https://github.com/rust-lang/rust-analyzer/issues/18211
+    tokens.collect()
+}
+
+macro_rules! error {
+    ($span:expr, $($fmt:tt)*) => {{
+        let span = SpanHelper($span).span_helper();
+        let msg = format!($($fmt)*);
+        proc_macro::TokenStream::from(quote_spanned!(span=> compile_error!(#msg);))
+    }};
+}
+use error;
+
+struct SpanHelper<T>(T);
+impl SpanHelper<TokenStream> {
+    fn span_helper(self) -> Span {
+        stream_span(self.0.into_token_stream())
+    }
+}
+trait SpanHelperTrait {
+    fn span_helper(self) -> Span;
+}
+impl SpanHelperTrait for SpanHelper<Span> {
+    fn span_helper(self) -> Span {
+        self.0
+    }
+}
+
+fn stream_span(stream: TokenStream) -> Span {
+    stream
+        .into_iter()
+        .next()
+        .map_or_else(Span::call_site, |token| token.span())
 }
