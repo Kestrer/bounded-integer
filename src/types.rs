@@ -334,6 +334,13 @@ mod tests {
         assert_eq!(u32::from(<BoundedU32<1, 5>>::new(3).unwrap()), 3);
         assert_eq!(i64::from(<BoundedU32<1, 5>>::new(3).unwrap()), 3);
         assert_eq!(usize::from(<BoundedU16<1, 5>>::new(3).unwrap()), 3);
+        assert_eq!(
+            u8::try_from(<BoundedI8<-5, 5>>::new(3).unwrap()).unwrap(),
+            3
+        );
+        u8::try_from(<BoundedI8<-5, 5>>::new(-1).unwrap()).unwrap_err();
+        assert_eq!(<BoundedI8<2, 5>>::try_from(3_u16).unwrap(), 3);
+        <BoundedI8<2, 5>>::try_from(8_u16).unwrap_err();
     }
 
     #[test]

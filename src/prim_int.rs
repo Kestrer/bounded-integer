@@ -1,6 +1,26 @@
 #![expect(clippy::must_use_candidate)]
 
+use core::fmt::{self, Display, Formatter};
 use core::num::NonZero;
+
+/// An error returned when a checked conversion into a bounded integer fails.
+#[derive(Debug, Clone, Copy)]
+#[non_exhaustive]
+pub struct TryFromError;
+
+impl Display for TryFromError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_str("out of range conversion to bounded integer attempted")
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for TryFromError {}
+
+#[must_use]
+pub fn try_from_error() -> TryFromError {
+    TryFromError
+}
 
 pub trait PrimInt {
     type Signed;

@@ -696,6 +696,23 @@ macro_rules! __unsafe_api_internal {
         $crate::__unsafe_api_internal!(@with_super($ty, $inner)
             $({ super: $super, generics: $generics_single_token })*
         );
+        $crate::__unsafe_api_internal!(@with_non_super($ty, $inner)
+            $({ non_super: $non_super, generics: $generics_single_token })*
+        );
+        $crate::__unsafe_api_internal!(@with_all_int($ty, $inner)
+            { int: u8, generics: $generics_single_token }
+            { int: u16, generics: $generics_single_token }
+            { int: u32, generics: $generics_single_token }
+            { int: u64, generics: $generics_single_token }
+            { int: u128, generics: $generics_single_token }
+            { int: usize, generics: $generics_single_token }
+            { int: i8, generics: $generics_single_token }
+            { int: i16, generics: $generics_single_token }
+            { int: i32, generics: $generics_single_token }
+            { int: i64, generics: $generics_single_token }
+            { int: i128, generics: $generics_single_token }
+            { int: isize, generics: $generics_single_token }
+        );
 
         // === Clone / Copy ===
 
@@ -1448,6 +1465,33 @@ macro_rules! __unsafe_api_internal {
         impl<$($generics)*> From<$ty> for $super where $($where)* {
             fn from(bounded: $ty) -> Self {
                 Self::from(bounded.get())
+            }
+        }
+    )* };
+
+    (@with_non_super($ty:ty, $inner:ty)
+        $({ non_super: $non_super:ty, generics: ([$($generics:tt)*] where $($where:tt)*) })*
+    ) => { $(
+        #[automatically_derived]
+        impl<$($generics)*> TryFrom<$ty> for $non_super where $($where)* {
+            type Error = ::core::num::TryFromIntError;
+            fn try_from(n: $ty) -> Result<Self, Self::Error> {
+                <$non_super as TryFrom<$inner>>::try_from(n.get())
+            }
+        }
+    )* };
+
+    (@with_all_int($ty:ty, $inner:ty)
+        $({ int: $int:ty, generics: ([$($generics:tt)*] where $($where:tt)*) })*
+    ) => { $(
+        #[automatically_derived]
+        impl<$($generics)*> TryFrom<$int> for $ty where $($where)* {
+            type Error = $crate::TryFromError;
+            fn try_from(n: $int) -> Result<Self, Self::Error> {
+                <$inner as TryFrom<$int>>::try_from(n)
+                    .ok()
+                    .and_then(Self::new)
+                    .ok_or_else($crate::__private::try_from_error)
             }
         }
     )* };

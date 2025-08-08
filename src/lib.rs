@@ -120,6 +120,7 @@ mod parse;
 pub use parse::{ParseError, ParseErrorKind};
 
 mod prim_int;
+pub use prim_int::TryFromError;
 
 // Not public API.
 #[doc(hidden)]
@@ -151,7 +152,7 @@ pub mod __private {
     }
 
     pub use crate::parse::{error_above_max, error_below_min};
-    pub use crate::prim_int::{Signed, Unsigned, Wide};
+    pub use crate::prim_int::{Signed, Unsigned, Wide, try_from_error};
 
     feature_flags! { $
         __cfg_arbitrary1 "arbitrary1",
