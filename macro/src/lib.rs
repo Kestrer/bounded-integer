@@ -86,7 +86,9 @@ pub fn bounded_integer(input: proc_macro::TokenStream) -> proc_macro::TokenStrea
                 continue;
             }
         }
-        new_attrs.extend(quote!(# #attr));
+        // Just using `quote!` sometimes triggers a false positive in the `clippy::doc_markdown`
+        // lint when `#[cfg_attr(cond, doc = "SomeCode")]` is used inside a code block.
+        new_attrs.extend(quote_spanned!(group.span()=> # #attr));
     }
     attrs = new_attrs;
 

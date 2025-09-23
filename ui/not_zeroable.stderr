@@ -1,12 +1,12 @@
 error[E0080]: evaluation panicked: used `zero` on a type whose range does not include zero
   --> ui/not_zeroable.rs:4:1
    |
-4  | / bounded_integer::unsafe_api! {
-5  | |     for A,
-6  | |     unsafe repr: u8,
-7  | |     min: 1,
-8  | |     max: 1,
-9  | |     zero,
+ 4 | / bounded_integer::unsafe_api! {
+ 5 | |     for A,
+ 6 | |     unsafe repr: u8,
+ 7 | |     min: 1,
+ 8 | |     max: 1,
+ 9 | |     zero,
 10 | | }
    | |_^ evaluation of `_::<impl std::default::Default for A>::default::{constant#0}` failed here
    |
@@ -15,12 +15,12 @@ error[E0080]: evaluation panicked: used `zero` on a type whose range does not in
 note: erroneous constant encountered
   --> ui/not_zeroable.rs:4:1
    |
-4  | / bounded_integer::unsafe_api! {
-5  | |     for A,
-6  | |     unsafe repr: u8,
-7  | |     min: 1,
-8  | |     max: 1,
-9  | |     zero,
+ 4 | / bounded_integer::unsafe_api! {
+ 5 | |     for A,
+ 6 | |     unsafe repr: u8,
+ 7 | |     min: 1,
+ 8 | |     max: 1,
+ 9 | |     zero,
 10 | | }
    | |_^
    |

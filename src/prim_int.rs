@@ -1,5 +1,3 @@
-#![expect(clippy::must_use_candidate)]
-
 use core::fmt::{self, Display, Formatter};
 use core::num::NonZero;
 

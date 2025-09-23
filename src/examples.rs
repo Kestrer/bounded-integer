@@ -35,6 +35,7 @@ bounded_integer! {
 bounded_integer! {
     /// A bounded enum with named variants.
     ///
+    /// This was generated from:
     /// ```
     #[cfg_attr(feature = "step_trait", doc = "# #![feature(step_trait)]")]
     /// # use bounded_integer::bounded_integer;
