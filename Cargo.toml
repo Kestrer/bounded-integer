@@ -17,6 +17,9 @@ num-traits02 = { package = "num-traits", version = "0.2.14", default-features = 
 serde1 = { package = "serde", version = "1.0.124", default-features = false, optional = true }
 zerocopy = { version = "0.8.14", features = ["derive"], optional = true }
 
+[profile.test.package.optimization-tests]
+opt-level = 3
+
 [features]
 std = ["alloc"]
 alloc = []
@@ -40,4 +43,4 @@ trybuild = "1.0.110"
 all-features = true
 
 [workspace]
-members = ["macro"]
+members = ["macro", "optimization-tests"]
