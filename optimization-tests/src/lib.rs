@@ -32,7 +32,7 @@ unsafe extern "C" {
 /// emits a run-time branch, the binary will contain a call to a non-existent `extern`
 /// function and fail to link.
 #[macro_export]
-macro_rules! const_assert {
+macro_rules! optimizer_assert_guaranteed {
     ($cond:expr) => {
         if !$cond {
             $crate::should_be_optimized_out();
@@ -44,11 +44,11 @@ macro_rules! const_assert {
 /// `HI` inclusive.
 fn range_check_optimized_out_usize<const LO: usize, const HI: usize>(expected: usize) {
     let i = core::hint::black_box(BoundedUsize::<LO, HI>::new(expected).unwrap());
-    const_assert!(i.get() >= LO && i.get() <= HI);
+    optimizer_assert_guaranteed!(i.get() >= LO && i.get() <= HI);
     let i = core::hint::black_box(i);
-    const_assert!(*i.get_ref() >= LO && *i.get_ref() <= HI);
+    optimizer_assert_guaranteed!(*i.get_ref() >= LO && *i.get_ref() <= HI);
     let mut i = core::hint::black_box(i);
-    const_assert!(*unsafe { i.get_mut() } >= LO && *unsafe { i.get_mut() } <= HI);
+    optimizer_assert_guaranteed!(*unsafe { i.get_mut() } >= LO && *unsafe { i.get_mut() } <= HI);
 
     assert_eq!(
         core::hint::black_box(i.get()),
