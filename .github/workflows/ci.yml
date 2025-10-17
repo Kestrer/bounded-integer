@@ -102,8 +102,7 @@
                     "uses": "actions-rs/cargo@v1",
                     "with": {
                         "command": "miri",
-                        # `miri` does not support the `macros` feature as it uses IO.
-                        "args": "test --features arbitrary1,bytemuck1,num-traits02,serde1,zerocopy,std",
+                        "args": "test --workspace --all-features",
                     },
                 },
             ],

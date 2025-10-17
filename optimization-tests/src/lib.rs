@@ -1,21 +1,4 @@
 //! Checking compilation with optimizations for the `assert_unchecked` range tests in `unsafe_api`.
-//!
-//! ```rust,compile_fail
-//! const LOWER_BOUND: usize = 15;
-//!
-//! let bounded = bounded_integer::BoundedUsize::<LOWER_BOUND, 20>::new_saturating(15);
-//! let bounded = core::hint::black_box(bounded);
-//!
-//! optimization_tests::assert_optimized_out!(
-//!     bounded.get() <= LOWER_BOUND
-//! )
-//! optimization_tests::assert_optimized_out!(
-//!     *bounded.get_ref() <= LOWER_BOUND
-//! )
-//! optimization_tests::assert_optimized_out!(
-//!     *unsafe { bounded.get_mut() } <= LOWER_BOUND
-//! )
-//! ```
 
 // We should not export anything when not running tests
 #![cfg(test)]
@@ -39,6 +22,12 @@ macro_rules! optimizer_assert_guaranteed {
         }
     };
 }
+
+// If you uncomment this, the tests must fail to pass:
+// #[test]
+// fn should_fail() {
+//     optimizer_assert_guaranteed!(core::hint::black_box(true));
+// }
 
 /// Assert that the inner value is statically enforced to be between the bounds `LO` and
 /// `HI` inclusive.
