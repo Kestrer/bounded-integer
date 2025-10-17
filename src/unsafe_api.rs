@@ -335,10 +335,23 @@ macro_rules! __unsafe_api_internal {
                 }
             }
 
+            #[inline]
+            const fn assert_range(&self) {
+                // Safety: As this type cannot be constructed unless the inner value is within
+                // the given range, we can use `assert_unchecked` to ensure that LLVM always
+                // maintains the range information no matter what.
+                unsafe {
+                    ::core::hint::assert_unchecked(
+                        Self::in_range(::core::mem::transmute::<Self, $inner>(*self)),
+                    );
+                }
+            }
+
             /// Returns the value of the bounded integer as a primitive type.
             #[must_use]
             #[inline]
             pub const fn get(self) -> $inner {
+                self.assert_range();
                 unsafe { ::core::mem::transmute(self) }
             }
 
@@ -346,6 +359,7 @@ macro_rules! __unsafe_api_internal {
             #[must_use]
             #[inline]
             pub const fn get_ref(&self) -> &$inner {
+                self.assert_range();
                 unsafe { &*<*const _>::cast(self) }
             }
 
@@ -357,6 +371,7 @@ macro_rules! __unsafe_api_internal {
             #[must_use]
             #[inline]
             pub const unsafe fn get_mut(&mut self) -> &mut $inner {
+                self.assert_range();
                 unsafe { &mut *<*mut _>::cast(self) }
             }
 

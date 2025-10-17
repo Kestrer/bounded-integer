@@ -91,6 +91,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "optimization-tests"
+version = "0.1.0"
+dependencies = [
+ "bounded-integer",
+]
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.93"
 source = "registry+https://github.com/rust-lang/crates.io-index"

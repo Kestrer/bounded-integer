@@ -1,0 +1,8 @@
+[package]
+name = "optimization-tests"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+bounded-integer.path = ".."
