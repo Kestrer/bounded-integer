@@ -98,7 +98,7 @@
 #![warn(clippy::pedantic, rust_2018_idioms, unused_qualifications)]
 #![allow(clippy::items_after_statements, clippy::missing_errors_doc)]
 #![cfg_attr(feature = "step_trait", feature(step_trait))]
-#![cfg_attr(feature = "__doc", feature(doc_auto_cfg))]
+#![cfg_attr(feature = "__doc", feature(doc_cfg))]
 #![no_std]
 
 #[cfg(feature = "std")]
@@ -170,7 +170,7 @@ pub mod __private {
                 ($d ($tt:tt)*) => { $d ($tt)* };
             }
             // If the `__doc` feature flag is enabled, we are building for the current crate, and
-            // thus we forward the `cfg` so that `doc_auto_cfg` sees it.
+            // thus we forward the `cfg` so that `doc_cfg` sees it.
             #[macro_export]
             #[cfg(feature = $flag)]
             #[doc(hidden)]
