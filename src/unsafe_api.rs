@@ -1620,7 +1620,6 @@ macro_rules! __unsafe_api_internal {
 // Most functionality is tested in `types.rs`. But there are some things that API cannot do.
 #[cfg(test)]
 mod tests {
-    use crate::unsafe_api;
     use core::ffi::c_int;
     use core::marker::PhantomData;
 

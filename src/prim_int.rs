@@ -12,8 +12,7 @@ impl Display for TryFromError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for TryFromError {}
+impl core::error::Error for TryFromError {}
 
 #[must_use]
 pub fn try_from_error() -> TryFromError {

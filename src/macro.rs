@@ -212,8 +212,6 @@ macro_rules! __helper {
 
 #[cfg(test)]
 mod tests {
-    use crate::bounded_integer;
-
     #[test]
     fn all_below_zero() {
         bounded_integer!(#[expect(unused)] struct Struct(-400, -203););
@@ -337,7 +335,7 @@ mod tests {
         }
         #[cfg(not(all(feature = "bytemuck1", feature = "zerocopy", feature = "num-traits02")))]
         fn assert_zeroable<T: Default>() {}
-        #[expect(unused)]
+        #[allow(unused)]
         trait NotZeroable<const N: usize> {}
         impl<T: Default> NotZeroable<0> for T {}
         #[cfg(feature = "bytemuck1")]
@@ -394,7 +392,7 @@ mod tests {
         bounded_integer!(struct B(-128, 127););
         assert_unaligned::<B>();
 
-        #[expect(unused)]
+        #[allow(unused)]
         trait NotUnaligned {}
         impl<T: zerocopy::Unaligned> NotUnaligned for T {}
 
@@ -430,8 +428,6 @@ mod tests {
     #[test]
     fn allowed_attrs() {
         #![expect(deprecated)]
-        use crate::bounded_integer;
-
         bounded_integer! {
             #[cfg_attr(all(), doc = "…")]
             #[deprecated]

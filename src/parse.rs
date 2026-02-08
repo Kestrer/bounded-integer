@@ -1,6 +1,5 @@
+use core::error::Error;
 use core::fmt::{self, Display, Formatter};
-#[cfg(feature = "std")]
-use std::error::Error;
 
 macro_rules! from_str_radix_impl {
     ($($ty:ident)*) => { $(
@@ -100,7 +99,6 @@ impl Display for ParseError {
     }
 }
 
-#[cfg(feature = "std")]
 impl Error for ParseError {}
 
 /// The cause of the failure to parse the integer.

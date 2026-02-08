@@ -44,8 +44,7 @@
 //! # Crate Features
 //!
 //! By default, no crate features are enabled.
-//! - `std`: Interopate with `std` — implies `alloc`. Enables the following things:
-//!     - An implementation of [`Error`] for [`ParseError`].
+//! - `std`: Interopate with `std` — implies `alloc`. Has no effect currently.
 //! - `alloc`: Interopate with `alloc`. Has no effect currently.
 //! - `macro`: Enable the [`bounded_integer!`] macro.
 //! - `arbitrary1`: Implement [`Arbitrary`] for the bounded integers. This is useful when using
