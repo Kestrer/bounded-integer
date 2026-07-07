@@ -1,5 +1,12 @@
 error[E0080]: evaluation panicked: range minimum should be less than maximum
- --> src/types.rs
+ --> src/unsafe_api.rs
+  |
+  |               pub const MIN: Self = Self::new(Self::MIN_VALUE)
+  |  ___________________________________^
+  | |                 .expect("range minimum should be less than maximum");
+  | |____________________________________________________________________^ evaluation of `bounded_integer::types::_::<impl bounded_integer::BoundedUsize<5, 4>>::MIN` failed here
+  |
+ ::: src/types.rs
   |
   | / define_bounded_integers! {
   | |     BoundedU8(u8, unaligned, unsigned),
@@ -8,7 +15,7 @@ error[E0080]: evaluation panicked: range minimum should be less than maximum
 ... |
   | |     BoundedIsize(isize),
   | | }
-  | |_^ evaluation of `bounded_integer::types::_::<impl bounded_integer::BoundedUsize<5, 4>>::MIN` failed here
+  | |_- in this macro invocation
   |
   = note: this error originates in the macro `$crate::__unsafe_api_internal` which comes from the expansion of the macro `define_bounded_integers` (in Nightly builds, run with -Z macro-backtrace for more info)
 
