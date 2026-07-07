@@ -27,7 +27,7 @@
                     "uses": "actions-rs/cargo@v1",
                     "with": {
                         "command": "clippy",
-                        "args": "--workspace --all-targets --features macro,arbitrary1,bytemuck1,num-traits02,serde1,zerocopy,std -- -Dwarnings",
+                        "args": "--workspace --all-targets --features macro,arbitrary1,bytemuck1,num-traits02,serde1,schemars1,zerocopy,std -- -Dwarnings",
                     },
                 },
             ],
@@ -49,7 +49,7 @@
                     "uses": "actions-rs/cargo@v1",
                     "with": {
                         "command": "test",
-                        "args": "--workspace --features macro,arbitrary1,bytemuck1,num-traits02,serde1,zerocopy,std",
+                        "args": "--workspace --features macro,arbitrary1,bytemuck1,num-traits02,serde1,schemars1,zerocopy,std",
                     },
                 },
             ],

@@ -1354,6 +1354,48 @@ macro_rules! __unsafe_api_internal {
                 }
             }
         }
+
+        // === Schemars ===
+
+        $crate::__private::__cfg_schemars1! {
+            use $crate::__private::alloc::borrow::{Cow, ToOwned};
+            use $crate::__private::schemars1::{JsonSchema, Schema, SchemaGenerator};
+            use $crate::__private::serde_json1::to_value;
+
+            #[automatically_derived]
+            impl<$($generics)*> JsonSchema for $ty where $($where)* {
+                // Like the primitive integers, a bounded integer is a simple constrained scalar
+                // that is clearer inlined than referenced through `$defs`.
+                fn inline_schema() -> bool {
+                    true
+                }
+
+                fn schema_name() -> Cow<'static, str> {
+                    <$inner as JsonSchema>::schema_name()
+                }
+
+                fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+                    let mut schema = <$inner as JsonSchema>::json_schema(generator);
+
+                    // `to_value` only fails for `i128`/`u128` bounds outside the `i64`/`u64`
+                    // range, which serde_json can represent solely with its `arbitrary_precision`
+                    // feature (at significant runtime cost); when it fails we leave the bound
+                    // unspecified.
+                    if let Ok(minimum) = to_value(Self::MIN_VALUE) {
+                        schema.insert("minimum".to_owned(), minimum);
+                    } else {
+                        schema.remove("minimum");
+                    }
+                    if let Ok(maximum) = to_value(Self::MAX_VALUE) {
+                        schema.insert("maximum".to_owned(), maximum);
+                    } else {
+                        schema.remove("maximum");
+                    }
+
+                    schema
+                }
+            }
+        }
     }; };
 
     (@repr u8, $($rest:tt)*) => { $crate::__unsafe_api_internal! {
