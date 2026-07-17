@@ -344,6 +344,49 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "schemars1")]
+    fn schemars() {
+        use schemars1::{generate::SchemaSettings, schema_for};
+        use serde_json1::json;
+
+        let meta = SchemaSettings::default().meta_schema.unwrap();
+
+        assert_eq!(
+            schema_for!(BoundedU16<10, 20>),
+            json!({
+                "$schema": meta,
+                "type": "integer",
+                "title": "uint16",
+                "format": "uint16",
+                "minimum": 10,
+                "maximum": 20,
+            })
+        );
+
+        assert_eq!(
+            schema_for!(BoundedI32<-8, 8>),
+            json!({
+                "$schema": meta,
+                "type": "integer",
+                "title": "int32",
+                "format": "int32",
+                "minimum": -8,
+                "maximum": 8,
+            })
+        );
+
+        assert_eq!(
+            schema_for!(BoundedI128<-0x1_0000_0000_0000_0000, 0x1_0000_0000_0000_0000>),
+            json!({
+                "$schema": meta,
+                "type": "integer",
+                "title": "int128",
+                "format": "int128",
+            })
+        );
+    }
+
+    #[test]
     #[cfg(feature = "num-traits02")]
     #[expect(clippy::too_many_lines)]
     fn num() {

@@ -384,6 +384,106 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "schemars1")]
+    fn schemars() {
+        use schemars1::{generate::SchemaSettings, schema_for};
+        use serde_json1::json;
+
+        let meta = SchemaSettings::default().meta_schema.unwrap();
+
+        bounded_integer!(struct A(3, 12););
+        assert_eq!(
+            schema_for!(A),
+            json!({
+                "$schema": meta,
+                "type": "integer",
+                "title": "uint8",
+                "format": "uint8",
+                "minimum": 3,
+                "maximum": 12,
+            })
+        );
+
+        // Signed ranges keep their negative bounds.
+        bounded_integer!(struct B(-10_000_000_005, -10_000_000_001););
+        assert_eq!(
+            schema_for!(B),
+            json!({
+                "$schema": meta,
+                "type": "integer",
+                "title": "int64",
+                "format": "int64",
+                "minimum": -10_000_000_005i64,
+                "maximum": -10_000_000_001i64,
+            })
+        );
+
+        // Enums work just like structs.
+        bounded_integer!(enum C(-1, 1););
+        assert_eq!(
+            schema_for!(C),
+            json!({
+                "$schema": meta,
+                "type": "integer",
+                "title": "int8",
+                "format": "int8",
+                "minimum": -1,
+                "maximum": 1,
+            })
+        );
+
+        // Including enums with named variants.
+        bounded_integer! {
+            enum Sign {
+                #[allow(unused)]
+                Negative = -1,
+                #[allow(unused)]
+                Zero,
+                #[allow(unused)]
+                Positive,
+            }
+        }
+        assert_eq!(
+            schema_for!(Sign),
+            json!({
+                "$schema": meta,
+                "type": "integer",
+                "title": "int8",
+                "format": "int8",
+                "minimum": -1,
+                "maximum": 1,
+            })
+        );
+
+        // A custom `repr` is reflected in the schema’s `format`.
+        bounded_integer!(#[repr(u16)] struct D(2, 4););
+        assert_eq!(
+            schema_for!(D),
+            json!({
+                "$schema": meta,
+                "type": "integer",
+                "title": "uint16",
+                "format": "uint16",
+                "minimum": 2,
+                "maximum": 4,
+            })
+        );
+
+        // Assuming serde_json/arbitrary_precision is disabled:
+        // Bounds that fall outside the i64/u64 range are omitted but the type is still supported.
+        bounded_integer!(struct E(0x1_0000_0000_0000_0000, 0x2_0000_0000_0000_0000););
+        assert_eq!(
+            schema_for!(E),
+            json!({
+                "$schema": meta,
+                "type": "integer",
+                "title": "uint128",
+                "format": "uint128",
+            })
+        );
+    }
+
+    #[test]
     #[cfg(feature = "zerocopy")]
     fn unaligned() {
         fn assert_unaligned<T: zerocopy::Unaligned>() {}

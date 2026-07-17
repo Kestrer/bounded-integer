@@ -57,6 +57,10 @@
 //!   [`SaturatingSub`] for all bounded integers.
 //! - `serde1`: Implement [`Serialize`] and [`Deserialize`] for the bounded integers, making sure all
 //!   values will never be out of bounds.
+//! - `schemars1`: Implement [`JsonSchema`] for the bounded integers, describing them as their
+//!   underlying primitive constrained to the type’s range via `minimum` and `maximum`. Bounds of
+//!   `i128`/`u128`-backed integers that fall outside the `i64`/`u64` range are omitted unless
+//!   `serde_json`’s `arbitrary_precision` feature is enabled (which has a significant runtime cost).
 //! - `zerocopy`: Implement [`IntoBytes`] and [`Immutable`] for all bounded integers,
 //!   [`Unaligned`] for ones backed by `u8` or `i8`,
 //!   and [`FromZeros`] for suitable macro-generated ones.
@@ -87,6 +91,7 @@
 //! [`SaturatingSub`]: https://docs.rs/num-traits/0.2/num_traits/ops/saturating/trait.SaturatingSub.html
 //! [`Serialize`]: https://docs.rs/serde/1/serde/trait.Serialize.html
 //! [`Deserialize`]: https://docs.rs/serde/1/serde/trait.Deserialize.html
+//! [`JsonSchema`]: https://docs.rs/schemars/1/schemars/trait.JsonSchema.html
 //! [`IntoBytes`]: https://docs.rs/zerocopy/0.8/zerocopy/trait.IntoBytes.html
 //! [`FromZeros`]: https://docs.rs/zerocopy/0.8/zerocopy/trait.FromZeros.html
 //! [`Immutable`]: https://docs.rs/zerocopy/0.8/zerocopy/trait.Immutable.html
@@ -122,6 +127,9 @@ pub use prim_int::TryFromError;
 // Not public API.
 #[doc(hidden)]
 pub mod __private {
+    #[cfg(feature = "alloc")]
+    pub extern crate alloc;
+
     #[cfg(feature = "arbitrary1")]
     pub use ::arbitrary1;
 
@@ -130,6 +138,9 @@ pub mod __private {
 
     #[cfg(feature = "num-traits02")]
     pub use ::num_traits02;
+
+    #[cfg(feature = "schemars1")]
+    pub use ::{schemars1, serde_json1};
 
     #[cfg(feature = "serde1")]
     pub use ::serde1;
@@ -155,6 +166,7 @@ pub mod __private {
         __cfg_arbitrary1 "arbitrary1",
         __cfg_bytemuck1 "bytemuck1",
         __cfg_num_traits02 "num-traits02",
+        __cfg_schemars1 "schemars1",
         __cfg_serde1 "serde1",
         __cfg_step_trait "step_trait",
         __cfg_zerocopy "zerocopy",

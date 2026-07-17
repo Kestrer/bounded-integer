@@ -97,8 +97,12 @@ error: cannot find attribute `another_disallowed` in this scope
 error[E0308]: mismatched types
   --> ui/macro.rs:74:29
    |
-74 |     pub struct ReprWrong(0, 1_u16);
-   |                             ^^^^^ expected `u8`, found `u16`
+72 | / bounded_integer! {
+73 | |     #[repr(u8)]
+74 | |     pub struct ReprWrong(0, 1_u16);
+   | |                             ^^^^^ expected `u8`, found `u16`
+75 | | }
+   | |_- expected because of the type of the associated constant
    |
 help: change the type of the numeric literal from `u16` to `u8`
    |
