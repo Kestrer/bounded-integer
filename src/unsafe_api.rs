@@ -996,8 +996,30 @@ macro_rules! __unsafe_api_internal {
                     iter::Step::forward_checked(start.get(), count).and_then(Self::new)
                 }
                 #[inline]
+                fn forward_overflowing(start: Self, count: usize) -> (Self, bool) {
+                    let this = <Self as iter::Step>::forward_checked(start, count);
+                    (this.unwrap_or(start), this.is_none())
+                }
+                #[inline]
+                unsafe fn forward_unchecked(start: Self, count: usize) -> Self {
+                    unsafe {
+                        Self::new_unchecked(iter::Step::forward_unchecked(start.get(), count))
+                    }
+                }
+                #[inline]
                 fn backward_checked(start: Self, count: usize) -> Option<Self> {
                     iter::Step::backward_checked(start.get(), count).and_then(Self::new)
+                }
+                #[inline]
+                fn backward_overflowing(start: Self, count: usize) -> (Self, bool) {
+                    let this = <Self as iter::Step>::backward_checked(start, count);
+                    (this.unwrap_or(start), this.is_none())
+                }
+                #[inline]
+                unsafe fn backward_unchecked(start: Self, count: usize) -> Self {
+                    unsafe {
+                        Self::new_unchecked(iter::Step::backward_unchecked(start.get(), count))
+                    }
                 }
             }
         }
