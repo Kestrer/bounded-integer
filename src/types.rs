@@ -424,9 +424,7 @@ mod tests {
         assert_eq!(<B as AsPrimitive<i64>>::as_(b(4)), 4i64);
         assert_eq!(<B as AsPrimitive<i128>>::as_(b(4)), 4i128);
         assert_eq!(<B as AsPrimitive<isize>>::as_(b(4)), 4isize);
-        #[expect(clippy::float_cmp)]
         let () = assert_eq!(<B as AsPrimitive<f32>>::as_(b(4)), 4f32);
-        #[expect(clippy::float_cmp)]
         let () = assert_eq!(<B as AsPrimitive<f64>>::as_(b(4)), 4f64);
 
         assert_eq!(B::from_u8(4u8), Some(b(4)));
